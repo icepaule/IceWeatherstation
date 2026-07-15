@@ -1,0 +1,45 @@
+# IceWeatherstation — Tasmota Konsolen-Konfiguration
+#
+# Voraussetzung: GPIOs bereits über die Web-Oberfläche
+# (Konfiguration -> Konfiguriere Modul) gesetzt, siehe docs/wiring.md.
+# Diese Datei NICHT als Datei hochladen — Zeilen einzeln oder als
+# ein Backlog-Befehl in die Tasmota-Konsole einfügen.
+#
+# Platzhalter <IN_SPITZEN_KLAMMERN> vor dem Einfügen durch echte Werte
+# ersetzen. Absichtlich keine echten Zugangsdaten in diesem öffentlichen
+# Repo hinterlegt.
+
+# --- Grundlegendes ---
+FriendlyName1 <GERAETENAME, z.B. "Wetterstation Garten">
+TelePeriod 60
+
+# --- Regenmesser / Anemometer (Counter) ---
+CounterType1 0
+CounterType2 0
+CounterDebounce 10
+
+# --- dBA-Sensor SEN0232 (ADC Range, GPIO muss im Modul auf "ADC Input Range" stehen) ---
+# Formel lt. DFRobot-Datenblatt: dB = Vout(V) x 50 -> 0,6-2,6V => 30,0-130,0 dBA (x10 fuer 1 Nachkommastelle)
+AdcParam1 6,600,2600,300,1300
+
+# --- AS3935 Blitzsensor (Outdoor-Modus, siehe docs/tasmota-config.md) ---
+AS3935setgain Outdoors
+AS3935autonf 1
+AS3935disturber 1
+AS3935autodisturber 1
+
+# --- MQTT (nur fuers eigene Geraet mit Home Assistant - beim Schwager-Geraet WEGLASSEN) ---
+# MqttHost <MQTT_BROKER_IP_ODER_HOSTNAME>
+# MqttUser <MQTT_USER>
+# MqttPassword <MQTT_PASSWORT>
+# SetOption19 1
+
+# --- Als Einzeiler (Backlog), z.B. fuer Copy-Paste in die Konsole ---
+# Backlog FriendlyName1 <NAME>; TelePeriod 60; CounterType1 0; CounterType2 0; CounterDebounce 10; AdcParam1 6,600,2600,300,1300; AS3935setgain Outdoors; AS3935autonf 1; AS3935disturber 1; AS3935autodisturber 1
+
+# --- Nach dieser Konfiguration ---
+# 1. AS3935settings  -> Werte gegenpruefen
+# 2. Status 10        -> Counter-/Analog-Rohwerte pruefen
+# 3. autoexec.be hochladen (siehe firmware/berry/autoexec.be), danach BrRestart
+# 4. WebSensor-Befehl nutzen, um die Startseite zu kuratieren (Nummern je nach
+#    aktivierten Sensoren unterschiedlich - per "Status 8" Sensorliste pruefen)

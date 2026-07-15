@@ -29,7 +29,9 @@ Es sind **zwei Geräte** geplant (baugleich): eines für den Eigenbedarf, eines 
 | [docs/enclosure.md](docs/enclosure.md) | Gehäuse, Mast-Montage, wetterfestes Mikrofongehäuse (DNMS-Design) |
 | [docs/misol-compatibility.md](docs/misol-compatibility.md) | MISOL-Kompatibilitätsanalyse (warum kein Plug-and-Play) |
 | [docs/tasmota-config.md](docs/tasmota-config.md) | Firmware-Konfiguration: Template, Counter, ADC, Rules |
-| [firmware/berry/windvane.be](firmware/berry/windvane.be) | Berry-Skript-Entwurf: Windrichtung-Lookup + Web-UI-Erweiterung |
+| [firmware/README.md](firmware/README.md) | Firmware-Bezug (offizielles `tasmota32.bin`, kein Custom-Build nötig) + Flash-Anleitung |
+| [firmware/config/backlog.txt](firmware/config/backlog.txt) | Fertiger Tasmota-Konsolen-Befehlssatz (Counter, ADC, AS3935) |
+| [firmware/berry/autoexec.be](firmware/berry/autoexec.be) | Berry-Skript-Entwurf: Windrichtung-Lookup + Web-UI-Erweiterung |
 
 ## Hardware-Kurzüberblick
 

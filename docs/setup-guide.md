@@ -9,7 +9,7 @@ flowchart TD
     S3["3. Tasmota flashen"]
     S4["4. Grundkonfiguration<br/>WLAN + Modul/GPIO"]
     S5["5. Sensor-Verifikation<br/>I2C-Scan, Counter-Test"]
-    S6["6. Firmware-Feinschliff<br/>Counter, AdcGpio, Berry-Skript"]
+    S6["6. Firmware-Feinschliff<br/>Counter, AdcParam, Berry-Skript"]
     S7["7. Gehäuse-Endmontage"]
     S8["8. Mast-/Standort-Montage"]
     S9["9a. Home Assistant<br/>(eigenes Gerät)"]
@@ -26,9 +26,9 @@ flowchart TD
 ## 1. Vorbereitung
 
 - Werkzeug: Lötkolben, Multimeter, Wasserwaage (für Regenmesser-Montage), Schraubendreher-Set
-- Tasmota-Firmware: aktuelle ESP32-Version von [tasmota.github.io](https://tasmota.github.io/docs/) herunterladen (Standard-Build reicht, kein Custom-Build nötig — anders als bei den MAX7219-Matrix-Displays)
+- Tasmota-Firmware: `tasmota32.factory.bin` von [ota.tasmota.com/tasmota32/release](https://ota.tasmota.com/tasmota32/release/) herunterladen (Standard-Build reicht, kein Custom-Build nötig — anders als bei den MAX7219-Matrix-Displays, Details: [firmware/README.md](../firmware/README.md))
 - [Tasmotizer](https://github.com/tasmota/tasmotizer) oder `esptool.py` zum Flashen
-- Diese Doku griffbereit: [bom.md](bom.md) (Teile), [wiring.md](wiring.md) (Pins), [tasmota-config.md](tasmota-config.md) (Befehle)
+- Diese Doku griffbereit: [bom.md](bom.md) (Teile), [wiring.md](wiring.md) (Pins), [tasmota-config.md](tasmota-config.md) (Befehle), [firmware/config/backlog.txt](../firmware/config/backlog.txt) (fertige Konsolen-Befehle)
 
 ## 2. Sensoren einzeln auf dem Breadboard testen
 
@@ -42,7 +42,7 @@ flowchart TD
 
 ## 3. Tasmota flashen
 
-Über USB per Tasmotizer oder `esptool.py write_flash`. Nach dem ersten Boot verbindet sich der ESP32 als offener Access Point (`tasmota-XXXX`) — darüber die WLAN-Zugangsdaten eintragen.
+Über USB per Tasmotizer oder `esptool.py write_flash` mit `tasmota32.factory.bin` (Befehl siehe [firmware/README.md](../firmware/README.md)). Nach dem ersten Boot verbindet sich der ESP32 als offener Access Point (`tasmota-XXXX`) — darüber die WLAN-Zugangsdaten eintragen.
 
 > Platzhalter in dieser Anleitung: `<WIFI_SSID>` / `<WIFI_PASSWORT>` / `<MQTT_BROKER>` / `<MQTT_USER>` / `<MQTT_PASSWORT>` — bewusst nicht mit echten Zugangsdaten befüllt, durch eigene Werte ersetzen.
 
@@ -65,9 +65,9 @@ Testpulse: Reed-Kontakte von Regenmesser/Anemometer per Hand kurz schließen, `C
 
 ## 6. Firmware-Feinschliff
 
-1. Counter-Konfiguration und `AdcGpio`/`AdcParam` für den dBA-Sensor setzen — Befehle siehe [tasmota-config.md](tasmota-config.md)
-2. Berry-Skript hochladen: *Konsole* → Datei-Upload oder per `Backlog` — Datei: [firmware/berry/windvane.be](../firmware/berry/windvane.be)
-3. `AS3935Mi 0` (Outdoor-Modus) setzen
+1. Fertigen Befehlssatz aus [firmware/config/backlog.txt](../firmware/config/backlog.txt) in die Konsole einfügen (Counter, `AdcParam` für den dBA-Sensor, AS3935-Outdoor-Modus) — Hintergrund/Befehlsreferenz: [tasmota-config.md](tasmota-config.md)
+2. Berry-Skript hochladen: *Konsole* → *Verwalte Dateisystem* → Datei-Upload — Datei: [firmware/berry/autoexec.be](../firmware/berry/autoexec.be) (Name **muss** exakt `autoexec.be` bleiben, sonst kein Auto-Start), danach `BrRestart`
+3. `AS3935settings` zur Kontrolle ausführen
 4. `WebSensor`-Befehl nutzen, um irrelevante Rohwerte auf der Startseite auszublenden
 
 ## 7. Gehäuse-Endmontage
@@ -126,12 +126,12 @@ Für ein Gerät ohne Smart-Home-Infrastruktur beim Empfänger bleibt MQTT einfac
 1. mDNS-Hostname statt IP-Adresse merken/verlinken: `http://tasmota-XXXX.local/`
 2. Als Lesezeichen bzw. Homescreen-Icon auf dem Smartphone speichern (funktioniert wie eine App-Verknüpfung)
 3. `WebSensor`-Befehl nutzt dieselbe Kuratierung wie beim eigenen Gerät — nur relevante Werte anzeigen
-4. Das Berry-`web_sensor()`-Hook aus [windvane.be](../firmware/berry/windvane.be) ergänzt Regen/Wind/Richtung automatisch in der Standard-Sensortabelle, ganz ohne eigene HTML-Seite
+4. Das Berry-`web_sensor()`-Hook aus [autoexec.be](../firmware/berry/autoexec.be) ergänzt Regen/Wind/Richtung automatisch in der Standard-Sensortabelle, ganz ohne eigene HTML-Seite
 5. Optional: SSD1306-OLED direkt am Gehäuse für alle, die gar keinen Browser öffnen wollen — „ein Blick genügt“
 
 ## 10. Kalibrierung nach dem Aufbau
 
-- **Windfahne:** Rohe ADC-Werte (GPIO34) für jede der 8/16 Richtungen real messen (z.B. mit Kompass am Mast drehen) und die Platzhalter-Tabelle in [windvane.be](../firmware/berry/windvane.be) durch die gemessenen Werte ersetzen
+- **Windfahne:** Rohe ADC-Werte (GPIO34) für jede der 8/16 Richtungen real messen (z.B. mit Kompass am Mast drehen) und die Platzhalter-Tabelle in [autoexec.be](../firmware/berry/autoexec.be) durch die gemessenen Werte ersetzen
 - **dBA-Sensor:** Falls verfügbar, gegen ein Referenz-Schallpegelmessgerät (z.B. Smartphone-App als grobe Orientierung, kein Ersatz für ein echtes Messgerät) bei 2-3 bekannten Lautstärken abgleichen
 - **AS3935:** `AS3935Nf`/Störungsschwellen ggf. nachjustieren, falls in den ersten Tagen viele Fehlalarme (`noise`/`disturber`-Events) auftreten — Erfahrungswert aus der Luft1-Station: Outdoor-Modus reduziert das bereits deutlich
 
@@ -142,6 +142,6 @@ Für ein Gerät ohne Smart-Home-Infrastruktur beim Empfänger bleibt MQTT einfac
 | `I2CScan` findet BME280/AS3935 nicht | Verkabelung SDA/SCL vertauscht, oder falsche I2C-Adresse (AS3935-Klone variieren) |
 | DS18B20 liefert `-127°C` | Pull-up fehlt oder Kabel zu lang ohne Verstärkung |
 | Counter1/2 zählen nicht | Debounce zu hoch/niedrig, oder Reed-Kontakt-Polarität prüfen |
-| dBA-Wert konstant 0 oder maximal | `AdcGpio`-Konfiguration falsch, oder GPIO34/35 vertauscht (Windfahne↔dBA) |
+| dBA-Wert konstant 0 oder maximal | `AdcParam`-Konfiguration falsch, oder GPIO34/35 vertauscht (Windfahne↔dBA) |
 | WLAN verbindet nicht nach Flash | ESP32 im AP-Modus (`tasmota-XXXX`) erneut verbinden, WLAN-Zugangsdaten neu eintragen |
 | Web-UI zeigt eigene Zeilen (Regen/Wind) nicht | Berry-Skript nicht geladen/aktiv — `BrRestart` prüfen, Datei-Upload wiederholen |

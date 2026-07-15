@@ -1,6 +1,11 @@
 #-
-IceWeatherstation - Berry-Skript-Entwurf
+IceWeatherstation - autoexec.be
 ==========================================
+WICHTIG: Diese Datei muss exakt "autoexec.be" heissen und per Tasmota-
+Weboberflaeche (Konsole -> Datei-Manager / "Verwalte Dateisystem") auf den
+internen Flash-Speicher des ESP32 hochgeladen werden - nur unter diesem
+exakten Namen fuehrt Tasmota die Datei automatisch bei jedem Boot aus.
+
 ENTWURFSSTATUS: Ungetestet auf echter Hardware (siehe docs/tasmota-config.md).
 Nutzt ausschliesslich dokumentierte Tasmota-Berry-APIs (tasmota.read_sensors(),
 tasmota.add_cron(), tasmota.add_driver(), Driver.web_sensor()) - trotzdem vor
