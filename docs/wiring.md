@@ -98,6 +98,10 @@ Diese Tabelle listet **jeden physischen Pin/Draht** der Bauteile und wohin er au
 | SEN0232 (dBA) | VCC | 3,3V/5V (Modulaufdruck prüfen) | |
 | SEN0232 (dBA) | GND | GND | |
 | SEN0232 (dBA) | AOUT | GPIO35 | |
+| SSD1306-OLED (optional) | VCC | 3,3V | |
+| SSD1306-OLED (optional) | GND | GND | |
+| SSD1306-OLED (optional) | SDA | GPIO21 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
+| SSD1306-OLED (optional) | SCL | GPIO22 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
 | SEN-15901 Regenmesser | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
 | SEN-15901 Regenmesser | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO27 | ESP32-interner Pull-up i.d.R. ausreichend |
 | SEN-15901 Anemometer | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |

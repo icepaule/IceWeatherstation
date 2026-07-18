@@ -100,6 +100,23 @@ AS3935settings           // aktuelle Konfiguration zur Kontrolle anzeigen
 
 Erfahrungswert aus der Luft1-Station: `Outdoors`-Modus ist bei Freiluft-Montage entscheidend gegen Fehlalarme (`Indoors`-Modus hat deutlich höhere, für den Außeneinsatz zu empfindliche Verstärkung). I2C-Adresse ist bei diesem Sensor-Typ fix `0x03` (kein Konfigurationsschritt nötig). Bei anhaltenden Fehlalarmen zusätzlich `AS3935setnf` (Noise-Floor-Level 0–7) manuell nachjustieren.
 
+## 6. OLED-Display (Hailege 0,96" SSD1306, 128×64, I2C, 4-Pin)
+
+Kein eigener GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Verifiziert gegen [Tasmota Displays-Dokumentation](https://tasmota.github.io/docs/Displays/):
+
+```
+DisplayModel 2       // SSD1306
+DisplayAddress 60    // 0x3C, Standardadresse der meisten SSD1306-Klone
+DisplayDimmer 100    // dauerhaft an, kein Ausblenden nach Timeout
+DisplayMode 0        // aktiviert DisplayText-Befehle
+DisplaySize 128 64
+DisplayText [x0y0f1]Wetterstation
+```
+
+⚠️ Manche Hailege-Klone laufen auf `0x3D` statt `0x3C` — vor dem `DisplayAddress`-Befehl per `I2CScan` prüfen, welche Adresse tatsächlich erkannt wird (gleiches Vorgehen wie beim AS3935-Adressabgleich). Ein separater Reset-Pin ist bei der 4-Pin-Variante (GND/VCC/SCL/SDA) nicht vorhanden und wird von Tasmota für dieses Modell auch nicht verlangt.
+
+Sinnvoller Inhalt fürs Display: aktuelle Temperatur/Luftfeuchte (BME280), IP-Adresse, ggf. Wind/Regen-Live-Werte — Details zur Text-Platzierung (`[x,y,f]`-Syntax) in der offiziellen [Tasmota Display-Text-Doku](https://tasmota.github.io/docs/Displays/#displaytext).
+
 ## Konfigurationsablauf
 
 ```mermaid
