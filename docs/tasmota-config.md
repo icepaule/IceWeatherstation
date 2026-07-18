@@ -68,14 +68,21 @@ Die Umrechnung Pulse→mm bzw. Pulse/Zeit→km/h ist **nicht linear per `AdcPara
 
 DFRobot-Formel laut Datenblatt: **dB = Vout(V) × 50** (0,6V → 30 dBA, 2,6V → 130 dBA) — exakt linear, ideal für Tasmotas native ADC-Bereichsumrechnung.
 
-1. GPIO35 in *Konfiguriere Modul* auf **„ADC Input Range"** stellen (GPIO34/Windfahne bleibt auf normalem „ADC Input", Rohwert)
-2. Danach den Range-Befehl setzen (Syntax verifiziert gegen [Tasmota ADC-Dokumentation](https://tasmota.github.io/docs/ADC/), Stand v15.5.0):
+⚠️ **Zwei Fallen, live an Tasmota 15.5.0(release-tasmota32)-3.3.8 verifiziert und korrigiert (2026-07-18):**
+
+1. **`AdcParam<N>` zählt nach GPIO-Reihenfolge, nicht nach Pin-Nummer.** Die Kanalnummer `N` entspricht der Position unter allen ADC-Rollen-Pins, aufsteigend nach GPIO-Nummer sortiert — **nicht** der GPIO-Nummer selbst. Bei diesem Projekt: GPIO34 (Windfahne, „ADC Input") ist Kanal **1**, GPIO35 (dBA, „ADC Range") ist Kanal **2** → der richtige Befehl ist `AdcParam2`, nicht `AdcParam1`! Zur Kontrolle: Der Echo-Antwort-Wert an erster Stelle im Array ist die tatsächliche GPIO-Nummer, z.B. `{"AdcParam2":[35,...]}` bestätigt Pin 35.
+2. **Die Schwellwerte sind KEINE Millivolt, sondern ein 0–4095-Pseudo-ADC-Wert** (aus kalibrierter mV-Messung zurückgerechnet, siehe Tasmota-Quellcode `xsns_02_analog.ino`). 0,6V/2,6V müssen erst umgerechnet werden: `mV / 3300 × 4095`.
 
 ```
-AdcParam1 6,600,2600,300,1300   // Typ 6=linear Range; ADCin 0,6-2,6V(mV) -> Output 30,0-130,0 dBA (x0.1)
+600mV  → 600/3300×4095  ≈ 745
+2600mV → 2600/3300×4095 ≈ 3226
+
+AdcParam2 6,745,3226,300,1300   // Kanal 2 = GPIO35; Pseudo-ADC 745–3226 (≈0,6–2,6V) -> Output 30,0-130,0 dBA (x0.1)
 ```
 
-`AdcParam1` bezieht sich auf den **ersten** ADC-Pin, der im Modul auf „Range" gestellt ist — falls das nicht GPIO35 ist (z.B. weil in der Modul-Konfiguration eine andere Reihenfolge entsteht), mit `Status 10` prüfen, welcher Analog-Kanal (`A1`, `A2`, …) tatsächlich den dBA-Wert zeigt.
+Ergebnis nach Korrektur: `Status 10` zeigt einen plausiblen Wert um `Range1: 500–600` (= 50–60 dBA, normaler Innenraum-Umgebungspegel), statt vorher fälschlich `35` (3,5 dBA, unmöglich niedrig — Anzeichen, dass etwas an der Umrechnung nicht stimmt).
+
+Allgemein: mit `Status 10` immer gegenprüfen, welcher Analog-Kanal (`Range1`, `Range2`, …) tatsächlich den dBA-Wert zeigt, und mit `AdcParam<N>` (ohne Werte) den aktuell gespeicherten Zustand samt zugehöriger GPIO-Nummer abfragen, bevor man kalibriert.
 
 ## 4. Windfahne (Potentiometer → Richtung)
 
