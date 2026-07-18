@@ -86,12 +86,13 @@ Diese Tabelle listet **jeden physischen Pin/Draht** der Bauteile und wohin er au
 | BME280-Breakout | Thermo-/Hygro-/Barosensor | SCL | GPIO22 | gemeinsamer I2C-Bus mit AS3935 |
 | AS3935-Modul | Blitzsensor (Franklin) | VCC | 3,3V | |
 | AS3935-Modul | Blitzsensor (Franklin) | GND | GND | |
-| AS3935-Modul | Blitzsensor (Franklin) | SDA | GPIO21 | gemeinsamer I2C-Bus mit BME280 |
+| AS3935-Modul | Blitzsensor (Franklin) | SDA (**auf CJMCU-3935 als „MOSI" beschriftet**, kein SDA-Aufdruck) | GPIO21 | gemeinsamer I2C-Bus mit BME280 |
 | AS3935-Modul | Blitzsensor (Franklin) | SCL | GPIO22 | gemeinsamer I2C-Bus mit BME280 |
 | AS3935-Modul | Blitzsensor (Franklin) | IRQ | GPIO25 | |
 | AS3935-Modul | Blitzsensor (Franklin) | CS | GND | nur falls Platine SPI-Pins herausführt (bei I2C-Betrieb ungenutzt, aber nicht offen lassen) |
 | AS3935-Modul | Blitzsensor (Franklin) | MISO | GND | s.o. |
 | AS3935-Modul | Blitzsensor (Franklin) | SI | 3,3V | s.o. |
+| AS3935-Modul | Blitzsensor (Franklin) | A0 / A1 (falls auf der Platine vorhanden) | 3,3V | setzt I2C-Adresse auf `0x03` (von Tasmota/Doku so erwartet) |
 | DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | VCC (meist rot) | 3,3V | |
 | DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | GND (meist schwarz) | GND | |
 | DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | DATA (meist gelb) | GPIO4 | + 4,7 kΩ Pull-up zwischen DATA und 3,3V |
