@@ -34,7 +34,7 @@ Der 38-Pin-DevKitC-V4-Formfaktor (Espressif-Referenzdesign, auch von den meisten
 | 4 | VN | GPIO39 | |
 | 5 | IO34 | **GPIO34** | ✅ Windfahne (ADC) |
 | 6 | IO35 | **GPIO35** | ✅ dBA-Sensor SEN0232 (ADC) |
-| 7 | IO32 | GPIO32 | |
+| 7 | IO32 | **GPIO32** | ✅ „Option A3" — virtueller uDisplay-Marker fürs OLED, keine physische Funktion (siehe [tasmota-config.md](tasmota-config.md) Abschnitt 6) |
 | 8 | IO33 | GPIO33 | |
 | 9 | IO25 | **GPIO25** | ✅ AS3935 IRQ |
 | 10 | IO26 | GPIO26 | |
@@ -72,7 +72,7 @@ Der 38-Pin-DevKitC-V4-Formfaktor (Espressif-Referenzdesign, auch von den meisten
 | 18 | D0 | GPIO7 | ⚠️ intern für Flash-SPI, nicht verwenden |
 | 19 | CLK | GPIO6 | ⚠️ intern für Flash-SPI, nicht verwenden |
 
-**Alle 8 im Projekt genutzten GPIOs (21, 22, 25, 4, 27, 14, 34, 35) liegen auf normalen, unkritischen I/O-Pins — keine Kollision mit Boot-Strapping- oder internem Flash-SPI-Pin.** Quelle: [Espressif ESP32-DevKitC V4 User Guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html).
+**Alle 9 im Projekt genutzten GPIOs (21, 22, 25, 4, 27, 14, 34, 35, 32) liegen auf normalen, unkritischen I/O-Pins — keine Kollision mit Boot-Strapping- oder internem Flash-SPI-Pin.** Quelle: [Espressif ESP32-DevKitC V4 User Guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html).
 
 ## Physische Pin-Zuordnung fürs Prep-Board
 

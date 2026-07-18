@@ -93,6 +93,8 @@ Keine native Tasmota-Umrechnung vorhanden. Zwei Optionen:
 
 Die Datenblatt-Spannungswerte der SparkFun-Windfahne sind laut mehreren Quellen in der Praxis ungenau — **nach dem Aufbau mit einer Wasserwaage/Kompass real durchmessen und die Lookup-Tabelle anpassen.**
 
+⚠️ **Fallstrick, live gefunden (2026-07-18):** Der Rohwert (`A1` im Status-10-JSON, `GPIO_ADC_INPUT`-Typ) verschwindet komplett aus der JSON-Ausgabe, sobald `AdcParam<Kanal>` den **4. Parameter ungleich 0** stehen hat (das ist Tasmotas interner Umschalter für einen "Direct Mode", der eigentlich für Dimmer/Licht-Steuerung gedacht ist, nicht für uns relevant). Falls `A1` nicht in `Status 10` auftaucht, obwohl GPIO korrekt auf „ADC Input" steht: `AdcParam<Kanal>` (Kanalnummer nach GPIO-Reihenfolge zählen, siehe Abschnitt 3) mit 4. Wert explizit auf 0 zurücksetzen, z.B. `AdcParam1 6,0,0,0,0`.
+
 ## 5. AS3935 (Blitzsensor)
 
 Verifizierte Befehle laut [Tasmota AS3935-Dokumentation](https://tasmota.github.io/docs/AS3935/):
@@ -109,20 +111,51 @@ Erfahrungswert aus der Luft1-Station: `Outdoors`-Modus ist bei Freiluft-Montage 
 
 ## 6. OLED-Display (Hailege 0,96" SSD1306, 128×64, I2C, 4-Pin)
 
-Kein eigener GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Verifiziert gegen [Tasmota Displays-Dokumentation](https://tasmota.github.io/docs/Displays/):
+Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Braucht aber einen zusätzlichen **virtuellen Marker-Pin** (s.u.).
+
+⚠️ **Wichtige Änderung ggü. älteren Tasmota-Anleitungen (live an Tasmota 15.5.0 verifiziert, 2026-07-18):**
+
+1. **Der klassische `DisplayModel 2`/SSD1306-Treiber ist im Standard-`tasmota32.bin` gar nicht enthalten** — Display-Support ist ein eigenes Firmware-Feature-Build (`tasmota32-display.bin`). Umstieg per OTA, **ohne** die Sensor-Konfiguration zu verlieren (Settings bleiben auf dem separaten Flash-Dateisystem erhalten):
+   ```
+   OtaUrl http://ota.tasmota.com/tasmota32/release/tasmota32-display.bin
+   Upgrade 1
+   ```
+   Läuft über den ESP32-eigenen SafeBoot-Zwischenschritt (kurzzeitig `Version 15.5.0(release-safeboot)` im Log, normal), danach automatischer Neustart in `(release-display)`. Laut Tasmota-Quellcode entfernt dieser Build nur Emulation/Domoticz/Home-Assistant/Energy-Monitoring — AS3935 und Berry bleiben erhalten.
+2. **Der alte SSD1306-Treiber selbst wurde in aktuellem Tasmota komplett entfernt** und durch das neue, generische **uDisplay**-System ersetzt (`DisplayModel` ist jetzt immer **17**, unabhängig vom Displaytyp). Ein `DisplayModel 2`-Versuch wird stillschweigend auf `0` zurückgesetzt (Command scheint erfolgreich, wirkt aber nicht — keine Fehlermeldung!).
+
+### Einrichtung (uDisplay)
+
+1. Einen **ungenutzten** GPIO auf die Rolle **„Option A3"** setzen — rein virtueller Marker ohne physische Funktion, signalisiert Tasmota nur "uDisplay starten". In diesem Projekt: GPIO32 (frei, siehe [wiring.md](wiring.md)).
+   ```
+   GPIO32 6210   // "Option A3" — Basiswert "Option A1"=6208 + Instanz-Offset 2, gleiches Zählschema wie Counter1/2
+   ```
+2. Den SSD1306-Display-Descriptor hinterlegen — offizielle Datei [`SSD1306_128x64_display.ini`](https://github.com/arendst/Tasmota/blob/development/tasmota/displaydesc/SSD1306_128x64_display.ini) aus dem Tasmota-Repo, als **einzeiliger** String in `Rule3` gespeichert (Rule3 bewusst **nicht aktivieren** — dient hier nur als Datenspeicher für den Descriptor, nicht als ausführende Regel):
+   ```
+   Rule3 :H,SSD1306,128,64,1,I2C,3c,*,*,* :S,0,2,1,0,30,20 :I AE D5,80 A8,3F D3,00 40 8D,14 20,00 A1 C8 DA,12 81,9F D9,F1 DB,40 A4 A6 AF :o,AE :O,AF :A,00,10,40,00,00 :i,A6,A7
+   ```
+   ⚠️ Adresse `3c` im Descriptor selbst prüfen/anpassen, falls das eigene Board auf `0x3D` läuft (per `I2CScan` verifizieren, wie beim AS3935-Adressabgleich).
+3. Display-Modell aktivieren und Neustart (nötig, damit der Treiber greift):
+   ```
+   DisplayModel 17
+   Restart 1
+   ```
+4. Nach dem Neustart sollte das Boot-Log `DSP: SSD1306 initialized` zeigen. Test:
+   ```
+   DisplayText [x0y0f1]Wetterstation
+   ```
+
+### Live-Daten automatisch anzeigen
+
+Mit einer Rule lassen sich Sensorwerte bei jedem Telemetrie-Update automatisch aufs Display schreiben (`%value%` = aktueller Messwert des auslösenden Sensors, `Tele-`-Präfix triggert nur bei TelePeriod-Meldungen):
 
 ```
-DisplayModel 2       // SSD1306
-DisplayAddress 60    // 0x3C, Standardadresse der meisten SSD1306-Klone
-DisplayDimmer 100    // dauerhaft an, kein Ausblenden nach Timeout
-DisplayMode 0        // aktiviert DisplayText-Befehle
-DisplaySize 128 64
-DisplayText [x0y0f1]Wetterstation
+Rule1 ON Tele-DS18B20#Temperature DO DisplayText [x0y0f1]Temp:%value%C ENDON ON Tele-ANALOG#Range1 DO DisplayText [x0y16f1]Schall:%value%dB ENDON
+Rule1 1
 ```
 
-⚠️ Manche Hailege-Klone laufen auf `0x3D` statt `0x3C` — vor dem `DisplayAddress`-Befehl per `I2CScan` prüfen, welche Adresse tatsächlich erkannt wird (gleiches Vorgehen wie beim AS3935-Adressabgleich). Ein separater Reset-Pin ist bei der 4-Pin-Variante (GND/VCC/SCL/SDA) nicht vorhanden und wird von Tasmota für dieses Modell auch nicht verlangt.
+Zum schnellen Testen `TelePeriod 10` setzen (Standard danach mit `TelePeriod 300` wiederherstellen, sonst unnötig häufige Messages).
 
-Sinnvoller Inhalt fürs Display: aktuelle Temperatur/Luftfeuchte (BME280), IP-Adresse, ggf. Wind/Regen-Live-Werte — Details zur Text-Platzierung (`[x,y,f]`-Syntax) in der offiziellen [Tasmota Display-Text-Doku](https://tasmota.github.io/docs/Displays/#displaytext).
+⚠️ Für den dBA-Sensor (`ANALOG#Range1`) empfiehlt sich `AdcParam` **ohne** die künstliche ×10-Skalierung (`AdcParam2 6,745,3226,30,130` statt `...,300,1300`) — sonst zeigt das Display "596" statt "60" an. Details zur Umrechnung: Abschnitt 3 oben. Sobald BME280 nachgeliefert wird, lässt sich die Rule um `ON Tele-BME280#Temperature DO ... ENDON` bzw. `#Humidity` erweitern.
 
 ## Konfigurationsablauf
 

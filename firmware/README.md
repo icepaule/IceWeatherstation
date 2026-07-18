@@ -12,6 +12,7 @@ Anders als bei den MAX7219-LED-Matrix-Projekten (IceMatrix) braucht dieses Proje
 | Counter (Regen/Wind) | ✅ ja, Kernfunktion |
 | ADC Range (dBA-Sensor) | ✅ ja, Kernfunktion |
 | Berry-Scripting | ✅ ja, Standard ab Tasmota32 |
+| OLED-Display (SSD1306, optional) | ❌ **nein** — braucht `tasmota32-display.bin` statt `tasmota32.bin`, per OTA nachrüstbar ohne Sensor-Config zu verlieren, siehe [docs/tasmota-config.md](../docs/tasmota-config.md) Abschnitt 6. Live verifiziert 2026-07-18: dieser Build enthält weiterhin AS3935+Berry, entfernt nur Emulation/Domoticz/Home-Assistant/Energy-Monitoring |
 
 ## Bezug
 
