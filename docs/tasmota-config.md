@@ -146,16 +146,30 @@ Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am
 
 ### Live-Daten automatisch anzeigen
 
-Mit einer Rule lassen sich Sensorwerte bei jedem Telemetrie-Update automatisch aufs Display schreiben (`%value%` = aktueller Messwert des auslösenden Sensors, `Tele-`-Präfix triggert nur bei TelePeriod-Meldungen):
+**Erster Ansatz (überholt):** Eine einfache Tasmota-Rule (`ON Tele-DS18B20#Temperature DO DisplayText ... ENDON`) reicht für einzelne Werte, aber nicht für rollierende 24h-Fenster (Regenmenge, Luftdruck-Trend) — Rules haben keinen eigenen Zustand/Speicher über die Zeit. Das finale Dashboard läuft daher komplett über [firmware/berry/autoexec.be](../firmware/berry/autoexec.be) (Berry-Skript), **Rule1 ist deaktiviert** (`Rule1 0`).
+
+Das Skript aktualisiert alle 10 Sekunden per `tasmota.add_cron("*/10 * * * * *", ...)` drei Zeilen:
 
 ```
-Rule1 ON Tele-DS18B20#Temperature DO DisplayText [x0y0f1]Temp:%value%C ENDON ON Tele-ANALOG#Range1 DO DisplayText [x0y16f1]Schall:%value%dB ENDON
-Rule1 1
+Zeile 1: <RSSI>dBm <IP>              (oder "No-WiFi" falls WLAN nicht verbunden)
+Zeile 2: <Wind m/s>M <Richtung>° <Regen 24h>L
+Zeile 3: <Temperatur>C<Luftdruck ganzzahlig, ohne Einheit> <Trend U/D>
 ```
 
-Zum schnellen Testen `TelePeriod 10` setzen (Standard danach mit `TelePeriod 300` wiederherstellen, sonst unnötig häufige Messages).
+⚠️ **ESP32 kann keine eigene Versorgungsspannung messen** (anders als ESP8266 mit `ESP.getVcc()` — keine interne Referenz zum Vergleich vorhanden, siehe [ESP32-Forum-Diskussion](https://esp32.com/viewtopic.php?t=3221)). Zeile 1 zeigt deshalb WLAN-Signalstärke statt einer erfundenen Spannungsangabe. Falls später ein Spannungsteiler an einem freien ADC-Pin (GPIO33/36/39) verbaut wird, lässt sich echte Spannungsmessung nachrüsten.
 
-⚠️ Für den dBA-Sensor (`ANALOG#Range1`) empfiehlt sich `AdcParam` **ohne** die künstliche ×10-Skalierung (`AdcParam2 6,745,3226,30,130` statt `...,300,1300`) — sonst zeigt das Display "596" statt "60" an. Details zur Umrechnung: Abschnitt 3 oben. Sobald BME280 nachgeliefert wird, lässt sich die Rule um `ON Tele-BME280#Temperature DO ... ENDON` bzw. `#Humidity` erweitern.
+⚠️ **Font des Displays kann keine Sonderzeichen** (live getestet 2026-07-18: `°`-Zeichen erscheint als Kästchen). Das Skript hat deshalb zwei Schalter am Dateianfang:
+```berry
+var SHOW_DEGREE_SYMBOL = false  # testweise auf true stellen und visuell prüfen
+var SHOW_TREND_ARROWS = false   # dito — Pfeile ↑/↓ vs. Buchstaben U/D
+```
+Nach Änderung: Datei erneut über *Konsole → Verwalte Dateisystem* hochladen (exakt `autoexec.be`) + `Restart 1`.
+
+⚠️ Für den dBA-Sensor (`ANALOG#Range1`) empfiehlt sich `AdcParam` **ohne** die künstliche ×10-Skalierung (`AdcParam2 6,745,3226,30,130` statt `...,300,1300`) — sonst zeigt das Display "596" statt "60" an. Details zur Umrechnung: Abschnitt 3 oben.
+
+⚠️ **Berry kennt keine Listen-Multiplikation** (`[0.0] * 24` schlägt fehl mit `attribute_error`) — Ringpuffer stattdessen per Schleife befüllen (siehe `zero_list()` im Skript).
+
+Regenmenge/Luftdruck-Trend nutzen ein rollierendes 24-Stunden-Ringpuffer-Fenster (`tasmota.rtc()`/`tasmota.time_dump()` für die aktuelle Kalenderstunde) statt eines Mitternacht-Resets — überlebt aber **keinen Neustart** (Historie liegt im RAM, nicht in `persist`, um Flash-Verschleiß durch stündliche Schreibzugriffe zu vermeiden). Nach einem Neustart füllt sich das 24h-Fenster graduell wieder auf.
 
 ## Konfigurationsablauf
 
