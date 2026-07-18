@@ -27,18 +27,29 @@ Lösung: eigener PlatformIO-Build mit [`custom-build/user_config_override.h`](cu
 
 Kein eigenes PlatformIO-Environment nötig — der Standard-`tasmota32`-Env bringt die nötige `lib_display`-Bibliothek bereits über `lib_extra_dirs` mit, es fehlten nur die beiden Compile-Defines.
 
+### Optional: sprechende Web-UI-Labels statt "Counter 1"/"Analog1"/"ADC1 Range"
+
+Tasmota bietet **keine** eingebaute Möglichkeit, diese Sensor-Labels umzubenennen (offiziell bestätigte Einschränkung, siehe [GitHub-Issue #6970](https://github.com/arendst/Tasmota/issues/6970) — kein Speicherplatz für frei wählbare Strings vorgesehen). Für dieses Projekt daher als zusätzlicher Source-Patch gelöst: [`custom-build/friendly-labels.patch`](custom-build/friendly-labels.patch) ändert die hartkodierten Label-Strings in `xsns_01_counter.ino` (Regenmesser/Anemometer statt Counter 1/2) und `xsns_02_analog.ino` (Windfahne (roh)/Schallpegel (roh) statt Analog1/ADC1 Range). Live getestet 2026-07-18, funktioniert einwandfrei.
+
+⚠️ Größerer Wartungsaufwand als der reine Header-Override: der Patch bezieht sich auf feste Zeilennummern/Codeabschnitte und muss bei jedem Tasmota-Versionswechsel manuell neu geprüft/angepasst werden (`patch` schlägt bei Quellcode-Änderungen ggf. fehl, dann Handarbeit nötig). Optional — wer damit leben kann, dass die Tasmota-Web-UI technische Labels zeigt (Tasmotas eigene Haltung: Web-UI ist Konfig-/Debug-Tool, kein Endnutzer-Dashboard), kann diesen Schritt überspringen; das OLED-Display und eine spätere Home-Assistant-Anbindung zeigen ohnehin die sprechenden Bezeichnungen.
+
+```bash
+patch -p1 < ../custom-build/friendly-labels.patch   # im Tasmota-Repo-Root ausführen, nach dem Clone
+```
+
 ### Build-Schritte
 
 ```bash
 git clone --depth 1 --branch v15.5.0 https://github.com/arendst/Tasmota.git
 cp user_config_override.h Tasmota/tasmota/user_config_override.h   # aus diesem Ordner
 cd Tasmota
+patch -p1 < ../friendly-labels.patch                                # optional, siehe oben
 pio run -e tasmota32
-# Ergebnis: .pio/build/tasmota32/firmware.bin (App-Image, ~2,1 MB, für OTA/erneutes Serial-Flashen)
+# Ergebnis: .pio/build/tasmota32/firmware.bin (App-Image, ~2,2 MB, für OTA/erneutes Serial-Flashen)
 #           .pio/build/tasmota32/firmware.factory.bin, falls vorhanden (Ersteinrichtung über USB)
 ```
 
-Kompilierzeit ca. 5 Minuten. Speicherbedarf verifiziert: Flash 74 % belegt (2.184.647 / 2.949.120 Byte), RAM 24 % — ausreichend Reserve für spätere Erweiterungen (z.B. BME280 braucht keinen zusätzlichen Treiber-Code, ist bereits Teil des Basis-Featuresets).
+Kompilierzeit ca. 2–5 Minuten (abhängig vom Compiler-Cache). Speicherbedarf verifiziert: Flash ~75 % belegt (2.204.503 / 2.949.120 Byte), RAM 24 % — ausreichend Reserve für spätere Erweiterungen (z.B. BME280 braucht keinen zusätzlichen Treiber-Code, ist bereits Teil des Basis-Featuresets).
 
 ⚠️ Vor jedem Build-Versuch prüfen, ob sich `tasmota_configurations_ESP32.h` in einer neueren Tasmota-Version geändert hat (Github-Suche nach `USE_AS3935` und `FIRMWARE_TASMOTA32`/`FIRMWARE_DISPLAYS`) — die Trennung könnte sich mit künftigen Releases ändern oder eine offizielle Kombi-Variante entstehen.
 

@@ -191,4 +191,52 @@ flowchart TD
     J --> K[Konfiguration exportieren/sichern]
 ```
 
+## 7. Status-LED (WLAN/MQTT-Link, optional)
+
+Externe LED (z.B. aus einem Elegoo-Sensor-Kit) + Vorwiderstand (330Ω) an einem freien GPIO, hier **GPIO2**:
+
+```
+GPIO2 544      // "LedLink" (Basiswert "LedLink1", gleiches Zählschema wie Counter1/2)
+LedState 7     // s.u. — GPIO-Rolle allein reicht NICHT aus
+```
+
+Verkabelung: GPIO → Vorwiderstand → LED-Anode (langes Beinchen), LED-Kathode (kurzes Beinchen) → GND. Bei Common-Kathode-RGB-Modulen (z.B. Elegoo SMD-RGB/RGB-LED, 4 Pins: R/G/B/GND) reicht ein einzelner Farbkanal für diesen Zweck — die anderen beiden Pins bleiben unbeschaltet.
+
+⚠️ **Fallstrick, live gefunden (2026-07-18):** Die GPIO-Rollenzuweisung („LedLink") allein reicht nicht — ohne zusätzliches `LedState` bleibt die LED aus. `LedState` ist eine Bitmaske 0–7 (`enum LedStateOptions` im Tasmota-Quellcode: 1=Power, 2/4=MQTT-Sub/Pub-Aktivität, kombinierbar), **kein** einfacher "AN sobald WLAN+MQTT verbunden"-Schalter — eine erste Recherche deutete fälschlich auf einen (nicht existierenden) Wert 8 hin, der von `CmndLedState` aber hart auf `< MAX_LED_OPTION` (=8, also nur 0–7 gültig) begrenzt wird.
+
+Live-Verhalten bei `LedState 7`: LED **blinkt rhythmisch bei jeder MQTT-Aktivität** (Senden/Empfangen), kein dauerhaftes Leuchten im verbundenen Zustand — zeigt damit laufende Netzwerkaktivität statt eines reinen Verbunden/Getrennt-Zustands. Für dieses Projekt genau so gewünscht (bestätigt 2026-07-18).
+
+## 8. Zeitzone (Europe/Berlin, Sommerzeit)
+
+⚠️ **Fallstrick, live gefunden (2026-07-18):** `TimeStd`/`TimeDst` waren bereits korrekt mit den EU-DST-Standardregeln vorbelegt (letzter Sonntag März/Oktober), trotzdem zeigte die Lokalzeit nur UTC+1 statt der im Sommer korrekten UTC+2 (CEST) — betraf nicht nur die Anzeige, sondern auch **jede zeitbasierte Logik im Berry-Skript** (24h-Ringpuffer für Regen/Luftdruck-Trend, Nachtruhe-Fenster). Ursache: `Timezone` stand nicht auf `99` (= "nutze TimeStd/TimeDst-Regeln"), sondern auf einem festen Offset ohne Sommerzeit-Umstellung. Fix:
+
+```
+Timezone 99
+```
+
+Danach `Status 7` prüfen — `"Timezone":99` und die Lokalzeit muss der tatsächlichen Sommer-/Winterzeit entsprechen (Sunrise/Sunset-Werte in der gleichen Antwort sind ein guter Plausibilitäts-Check).
+
+## 9. Nachtruhe (Display + Status-LED 22:00–08:00 aus)
+
+Realisiert in [firmware/berry/autoexec.be](../firmware/berry/autoexec.be) über `QUIET_START_HOUR`/`QUIET_END_HOUR` (Standard 22/8) — schaltet `DisplayDimmer` und `LedState` stündlich neu (`tasmota.add_cron("0 0 * * * *", ...)`), damit ein Neustart mitten in der Nachtruhe sich selbst korrigiert.
+
+⚠️ **Fallstrick, live gefunden (2026-07-18):** Ein direkter Check beim Booten (in `init()`) griff auf `tasmota.rtc()['local']` zu, **bevor** NTP synchronisiert war (Epoch nahe 0 = 1970) — das lieferte Stunde 0 und löste fälschlich sofort Nachtruhe aus (Display/LED gingen nach jedem Neustart kurz aus, unabhängig von der echten Uhrzeit). Fix: `tasmota.set_timer(15000, ...)` für den ersten Check, zusätzlich Plausibilitätsprüfung (`epoch < 1000000000` → NTP noch nicht bereit → erneut in 15s versuchen).
+
+## 10. MQTT + Home Assistant
+
+MQTT-Zugangsdaten sind projektintern, **nicht** in diesem öffentlichen Repo dokumentiert (siehe Betriebs-Notizen). Wichtig für die HA-Anbindung:
+
+- `SetOption19 1` aktiviert Tasmotas **eigenes** Discovery-Format unter `tasmota/discovery/<MAC>/config` — das ist **nicht** das generische `homeassistant/<component>/.../config`-Schema, das die Standard-„MQTT"-Integration in Home Assistant erwartet. Für automatische Entity-Erstellung braucht es die **dedizierte "Tasmota"-Integration** in HA (separat von der generischen MQTT-Integration, aber auf derselben MQTT-Verbindung aufbauend).
+- Home Assistant erstellt Entities aus jedem Feld der periodischen `tele/.../SENSOR`-JSON automatisch (z.B. `sensor.tasmota_ds18b20_temperature`, `sensor.tasmota_counter_c1`, `sensor.tasmota_as3935_distance_2`). Eigene Berechnungswerte (Windgeschwindigkeit/-richtung, Regenmenge 24h) existieren nur im Berry-Skript-Speicher fürs OLED — damit sie ebenfalls per MQTT/HA sichtbar werden, müssen sie explizit in die SENSOR-JSON eingespeist werden.
+- Dafür in der Berry-`Driver`-Klasse eine `json_append()`-Methode ergänzen (analog zu `web_sensor()`, aber für MQTT statt Web-UI):
+  ```berry
+  def json_append()
+    tasmota.response_append(string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f}',
+      self.wind_ms, dir, self.rain_24h()))
+  end
+  ```
+  Erzeugt automatisch `sensor.tasmota_iceweather_windspeed` usw. in HA, ohne HA-seitige Template-Sensoren duplizieren zu müssen.
+
+Ergebnis im Home-Assistant-Dashboard `lovelace-wetter` (Tab „Aktuell"): eigener Kasten „🏠 IceWeatherstation (lokal, nicht online)" mit grünem Rahmen, klar von der Online-Wetterquelle (DWD/API oben im Dashboard) unterschieden.
+
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.

@@ -1,0 +1,59 @@
+diff --git a/tasmota/tasmota_xsns_sensor/xsns_01_counter.ino b/tasmota/tasmota_xsns_sensor/xsns_01_counter.ino
+index 7a3c559..8e09bb7 100644
+--- a/tasmota/tasmota_xsns_sensor/xsns_01_counter.ino
++++ b/tasmota/tasmota_xsns_sensor/xsns_01_counter.ino
+@@ -237,8 +237,18 @@ void CounterShow(bool json)
+         }
+ #ifdef USE_WEBSERVER
+       } else {
+-        WSContentSend_PD(PSTR("{s}" D_COUNTER " %d{m}%s%s{e}"),
+-          i +1, counter, (bitRead(Settings->pulse_counter_type, i)) ? " " D_UNIT_SECOND : "");
++        // IceWeatherstation: sprechende Labels statt "Counter 1"/"Counter 2"
++        // fuer die beiden fest verdrahteten Kanaele dieses Projekts.
++        if (0 == i) {
++          WSContentSend_PD(PSTR("{s}Regenmesser (Kippen){m}%s%s{e}"),
++            counter, (bitRead(Settings->pulse_counter_type, i)) ? " " D_UNIT_SECOND : "");
++        } else if (1 == i) {
++          WSContentSend_PD(PSTR("{s}Anemometer (Pulse){m}%s%s{e}"),
++            counter, (bitRead(Settings->pulse_counter_type, i)) ? " " D_UNIT_SECOND : "");
++        } else {
++          WSContentSend_PD(PSTR("{s}" D_COUNTER " %d{m}%s%s{e}"),
++            i +1, counter, (bitRead(Settings->pulse_counter_type, i)) ? " " D_UNIT_SECOND : "");
++        }
+ #endif  // USE_WEBSERVER
+       }
+     }
+diff --git a/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino b/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
+index 89a2cfe..8723dfc 100644
+--- a/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
++++ b/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
+@@ -817,7 +817,13 @@ void AdcShow(bool json) {
+             ResponseAppend_P(PSTR("\"A%d\":%d"), type_index + offset, analog);
+ #ifdef USE_WEBSERVER
+           } else {
+-            WSContentSend_PD(HTTP_SNS_ANALOG, "", type_index + offset, analog);
++            // IceWeatherstation: "Windfahne (roh)" statt "Analog1" fuer den
++            // einzigen ADC-Input-Kanal dieses Projekts (GPIO34).
++            if (1 == type_index + offset) {
++              WSContentSend_PD(PSTR("{s}Windfahne (roh){m}%d{e}"), analog);
++            } else {
++              WSContentSend_PD(HTTP_SNS_ANALOG, "", type_index + offset, analog);
++            }
+ #endif  // USE_WEBSERVER
+           }
+ #ifdef USE_LIGHT
+@@ -876,7 +882,13 @@ void AdcShow(bool json) {
+           ResponseAppend_P(PSTR("\"" D_JSON_RANGE "%s\":%s"), adc_channel, range_chr);
+ #ifdef USE_WEBSERVER
+         } else {
+-          WSContentSend_PD(HTTP_SNS_RANGE_CHR, adc_name, range_chr);
++          // IceWeatherstation: "Schallpegel (roh)" statt "ADC1 Range" fuer
++          // den einzigen ADC-Range-Kanal dieses Projekts (GPIO35, SEN0232).
++          if (0 == strcmp(adc_name, "ADC1")) {
++            WSContentSend_PD(PSTR("{s}Schallpegel (roh){m}%s{e}"), range_chr);
++          } else {
++            WSContentSend_PD(HTTP_SNS_RANGE_CHR, adc_name, range_chr);
++          }
+ #endif  // USE_WEBSERVER
+         }
+         break;

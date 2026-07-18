@@ -22,6 +22,9 @@ Aufgaben dieses Skripts:
     ebenfalls per Stunden-Ringpuffer)
  5. OLED-Dashboard (3 Zeilen, alle 10s aktualisiert) + eigene Zeilen im
     Tasmota-Web-UI (Startseite)
+ 6. Nachtruhe: OLED (DisplayDimmer) und Status-LED (LedState) 22:00-08:00 aus,
+    damit nachts niemand vom Leuchten gestoert wird - stuendlich neu geprueft
+    (selbstkorrigierend nach einem Neustart mitten in der Nachtruhe)
 
 Zeilenformat OLED (auf Nutzerwunsch):
  Zeile 1: "<RSSI>dBm <IP>" bzw. "No-WiFi" falls WLAN nicht verbunden
@@ -68,6 +71,11 @@ var VANE_TABLE = [
 var SHOW_DEGREE_SYMBOL = false  # live am Display getestet 2026-07-18: Font zeigt Kaestchen statt "°"
 var SHOW_TREND_ARROWS = false   # gleiches Basis-Font wie beim Grad-Zeichen, vorsorglich deaktiviert
 
+# Nachtruhe: Display+LED nur in diesem Stundenfenster aktiv (24h-Format,
+# QUIET_START=22 bedeutet ab 22:00 Uhr aus, QUIET_END=8 bedeutet ab 08:00 Uhr an)
+var QUIET_START_HOUR = 22
+var QUIET_END_HOUR = 8
+
 # Berry (Tasmota) kennt keine Python-artige Listen-Multiplikation ([0.0]*24) -
 # deshalb ueber eine Schleife befuellen.
 def zero_list(n)
@@ -87,6 +95,7 @@ class IceWeather : Driver
   var pressure_trend        # -1 fallend, 0 gleich/unbekannt, 1 steigend
   var wind_ms, wind_dir_deg
   var last_counter1, last_counter2
+  var quiet_mode        # true = Nachtruhe aktiv (Display+LED aus)
 
   def init()
     self.rain_hourly = zero_list(24)
@@ -97,7 +106,37 @@ class IceWeather : Driver
     self.wind_dir_deg = -1
     self.last_counter1 = 0
     self.last_counter2 = 0
+    self.quiet_mode = nil   # unbekannt -> erzwingt sofortige Anwendung beim ersten (gueltigen) Check
     tasmota.add_cron("*/10 * * * * *", / -> self.refresh_display(), "oled_refresh")
+    tasmota.add_cron("0 0 * * * *", / -> self.check_quiet_hours(), "quiet_hours_check")
+    # NICHT sofort in init() pruefen: die Systemzeit ist beim Booten noch nicht
+    # per NTP synchronisiert (Epoch ~0/1970), das wuerde faelschlich Stunde=0
+    # liefern und sofort Nachtruhe ausloesen. Stattdessen verzoegert pruefen
+    # und bei Bedarf so lange wiederholen, bis eine plausible Zeit vorliegt.
+    tasmota.set_timer(15000, / -> self.check_quiet_hours(), "quiet_hours_initial")
+  end
+
+  # Nachtruhe 22:00-08:00: OLED dimmen + Status-LED abschalten, damit niemand
+  # gestoert wird. Stuendlich neu geprueft (nicht nur einmalig zu Bootzeit),
+  # damit ein Neustart mitten in der Nachtruhe sich selbst korrigiert.
+  def check_quiet_hours()
+    var epoch = tasmota.rtc()['local']
+    if epoch < 1000000000   # NTP noch nicht synchronisiert (Epoch nahe 0/1970) - in 15s erneut versuchen
+      tasmota.set_timer(15000, / -> self.check_quiet_hours(), "quiet_hours_initial")
+      return
+    end
+    var h = tasmota.time_dump(epoch)['hour']
+    var should_be_quiet = (h >= QUIET_START_HOUR) || (h < QUIET_END_HOUR)
+    if should_be_quiet != self.quiet_mode
+      if should_be_quiet
+        tasmota.cmd("DisplayDimmer 0")
+        tasmota.cmd("LedState 0")
+      else
+        tasmota.cmd("DisplayDimmer 100")
+        tasmota.cmd("LedState 7")
+      end
+      self.quiet_mode = should_be_quiet
+    end
   end
 
   # liest die von Tasmota selbst berechnete Sensor-JSON aus (dokumentierter Weg,
@@ -200,6 +239,10 @@ class IceWeather : Driver
   end
 
   def refresh_display()
+    if self.quiet_mode
+      return   # Nachtruhe: Display ist gedimmt/aus, kein unnoetiger I2C-Traffic
+    end
+
     # Zeile 1: WLAN-Signalstaerke + IP (ESP32 kann keine eigene Versorgungs-
     # spannung ohne Zusatz-Hardware messen, deshalb RSSI statt "Volt")
     var line1
@@ -249,6 +292,19 @@ class IceWeather : Driver
     tasmota.cmd(string.format("DisplayText [x0y0f1]%s", line1))
     tasmota.cmd(string.format("DisplayText [x0y16f1]%s", line2))
     tasmota.cmd(string.format("DisplayText [x0y32f1]%s", line3))
+  end
+
+  # Haengt eigene Werte (Wind, Regen 24h) in die periodische MQTT-Sensor-JSON
+  # (tele/.../SENSOR) ein - dadurch von Tasmotas MQTT-Discovery automatisch
+  # als eigene Home-Assistant-Entitaeten erkannt, ohne HA-seitige Templates.
+  def json_append()
+    var dir = -1
+    if self.wind_dir_deg >= 0
+      dir = int(self.wind_dir_deg + 0.5)
+    end
+    tasmota.response_append(
+      string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f}',
+        self.wind_ms, dir, self.rain_24h()))
   end
 
   # Haengt eigene Zeilen an die Sensor-Tabelle der Tasmota-Startseite an

@@ -66,7 +66,7 @@ Der 38-Pin-DevKitC-V4-Formfaktor (Espressif-Referenzdesign, auch von den meisten
 | 12 | IO16 | GPIO16 | |
 | 13 | IO4 | **GPIO4** | ✅ DS18B20 (1-Wire) |
 | 14 | IO0 | GPIO0 | ⚠️ Boot-Strapping-Pin, nicht belegen |
-| 15 | IO2 | GPIO2 | ⚠️ Strapping-Pin |
+| 15 | IO2 | **GPIO2** | ✅ „LedLink" — Status-LED (WLAN/MQTT-Aktivität), optional. ⚠️ zusätzlich Strapping-Pin, aber unproblematisch (siehe [tasmota-config.md](tasmota-config.md) Abschnitt 7) |
 | 16 | IO15 | GPIO15 | ⚠️ Strapping-Pin |
 | 17 | D1 | GPIO8 | ⚠️ intern für Flash-SPI, nicht verwenden |
 | 18 | D0 | GPIO7 | ⚠️ intern für Flash-SPI, nicht verwenden |
@@ -181,6 +181,10 @@ graph TD
 ```
 
 **Hinweis Stromversorgung:** AS3935 und SEN0232 ziehen kontinuierlich Strom (kein reines Low-Power-Projekt). Bei der Solar-Alternative (siehe [bom.md](bom.md)) den Akku entsprechend großzügig dimensionieren.
+
+⚠️ **Kein Spannungsteiler zur Stromversorgung verwenden!** Ein Widerstandsteiler funktioniert nur für Signale mit vernachlässigbarem Strom (wie bei der Windfahne), nicht zum Versorgen des ESP32 selbst — der zieht stark schwankenden Strom (WLAN-Sendespitzen bis 300–500 mA), ein Spannungsteiler würde dabei einbrechen (Reset-Schleifen). Der 5V-Pin des DevKitC-Boards hat bereits einen eingebauten LDO-Regler auf 3,3V — 5V-Zuleitung einfach direkt an den 5V-Pin (oder über USB).
+
+⚠️ **Fallstrick, live gefunden (2026-07-18):** Manche moderne USB-C-Schnelllade-Netzteile (PD/QC) liefern **ganz ohne Spannung**, solange keine Aushandlung mit einer "intelligenten" Gegenstelle stattfindet — ein einfaches ESP32-Board handelt das oft nicht aus, das Board bleibt dann komplett dunkel (LED, OLED, alle Sensor-LEDs aus). Fix: einfaches "dummes" 5V/1–2A-USB-Netzteil ohne Fast-Charge/PD-Funktion verwenden (z.B. altes Handy-Ladegerät, Powerbank).
 
 ## Verkabelungs-Reihenfolge (empfohlen)
 
