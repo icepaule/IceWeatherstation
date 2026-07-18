@@ -15,7 +15,14 @@ Ursprünglich war angedacht, günstige Fertigsensorik (MISOL "Spare Part Outdoor
 
 ## Status
 
-🚧 **Teile bestellt (Stand 2026-07-15), Aufbau und Firmware noch nicht auf echter Hardware getestet.** Diese Doku ist der Bauplan inkl. Firmware-Entwurf — Konfigurationsbeispiele sind bewusst als Entwurf markiert und müssen beim realen Aufbau kalibriert bzw. gegen die dann aktuelle Tasmota-Dokumentation geprüft werden. Rückmeldungen aus dem echten Aufbau fließen hier laufend ein.
+✅ **Erstes Gerät aufgebaut, geflasht und am Schuppen im Betrieb (Stand 2026-07-19).** DS18B20, Regenmesser, Anemometer, Windfahne, dBA-Sensor, AS3935 (Blitz) und OLED-Display sind verkabelt, kalibriert und live verifiziert; MQTT + Home-Assistant-Anbindung läuft. Noch offen: BME280 (Temperatur/Feuchte/Druck) ist bestellt, aber noch nicht geliefert/verbaut. Zweites Gerät (fürs Geschenk) folgt nach demselben Bauplan.
+
+Fotos vom fertigen Aufbau:
+
+<p float="left">
+  <img src="docs/images/aufbau-schuppen-1.jpeg" width="45%" alt="Offenes Gehäuse mit Verkabelung, Windfahne/Anemometer im Hintergrund" />
+  <img src="docs/images/aufbau-schuppen-2.jpeg" width="45%" alt="Montage am Schuppendach, Anemometer/Windfahne auf dem Mast" />
+</p>
 
 Es sind **zwei Geräte** geplant (baugleich): eines für den Eigenbedarf, eines als Geschenk. Das zweite Gerät ist bewusst so ausgelegt, dass es **ohne** Home Assistant/MQTT beim Empfänger funktioniert — die Sensorwerte sind direkt über Tasmotas eingebautes Web-UI abrufbar.
 
@@ -29,7 +36,7 @@ Es sind **zwei Geräte** geplant (baugleich): eines für den Eigenbedarf, eines 
 | [docs/enclosure.md](docs/enclosure.md) | Gehäuse, Mast-Montage, wetterfestes Mikrofongehäuse (DNMS-Design) |
 | [docs/misol-compatibility.md](docs/misol-compatibility.md) | MISOL-Kompatibilitätsanalyse (warum kein Plug-and-Play) |
 | [docs/tasmota-config.md](docs/tasmota-config.md) | Firmware-Konfiguration: Template, Counter, ADC, Rules |
-| [firmware/README.md](firmware/README.md) | Firmware-Bezug (offizielles `tasmota32.bin`, kein Custom-Build nötig) + Flash-Anleitung |
+| [firmware/README.md](firmware/README.md) | Firmware-Bezug: eigener Custom-Build nötig (AS3935 + OLED-Display sind in keinem offiziellen ESP32-Release kombiniert), inkl. `custom-build/`-Patches + Flash-/OTA-Anleitung |
 | [firmware/config/backlog.txt](firmware/config/backlog.txt) | Fertiger Tasmota-Konsolen-Befehlssatz (Counter, ADC, AS3935) |
 | [firmware/berry/autoexec.be](firmware/berry/autoexec.be) | Berry-Skript-Entwurf: Windrichtung-Lookup + Web-UI-Erweiterung |
 

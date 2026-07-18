@@ -53,6 +53,17 @@ Kompilierzeit ca. 2–5 Minuten (abhängig vom Compiler-Cache). Speicherbedarf v
 
 ⚠️ Vor jedem Build-Versuch prüfen, ob sich `tasmota_configurations_ESP32.h` in einer neueren Tasmota-Version geändert hat (Github-Suche nach `USE_AS3935` und `FIRMWARE_TASMOTA32`/`FIRMWARE_DISPLAYS`) — die Trennung könnte sich mit künftigen Releases ändern oder eine offizielle Kombi-Variante entstehen.
 
+### Fertig kompilierte Binaries (Convenience, Stand 2026-07-18)
+
+Für alle, die nicht selbst bauen wollen, liegen die live getesteten Ergebnis-Binaries direkt in [`custom-build/`](custom-build/):
+
+| Datei | Zweck |
+|---|---|
+| [`custom-build/iceweatherstation-tasmota32.factory.bin`](custom-build/iceweatherstation-tasmota32.factory.bin) | Ersteinrichtung über USB (`esptool` mit `-z 0x0`) |
+| [`custom-build/iceweatherstation-tasmota32.bin`](custom-build/iceweatherstation-tasmota32.bin) | OTA-Update / erneutes Serial-Flashen (App-Partition) |
+
+Enthält AS3935 + uDisplay + die sprechenden Web-UI-Labels (Friendly-Labels-Patch bereits eingebaut). Für eine neuere Tasmota-Version selbst neu bauen (s.o.) statt diese Binaries blind zu verwenden.
+
 ## Bezug (falls doch nur ein Feature gebraucht wird)
 
 Offizielle Release-Binaries: **https://ota.tasmota.com/tasmota32/release/**
