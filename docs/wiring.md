@@ -20,6 +20,61 @@
 - Alle ADC-Pins bewusst auf **ADC1** (GPIO32–39) — ADC2 ist bei aktivem WLAN auf dem ESP32 nicht zuverlässig nutzbar
 - Rain/Wind auf getrennte Interrupt-fähige GPIOs, da beide unabhängig voneinander und potenziell gleichzeitig Pulse liefern
 
+## Physische Pin-Zuordnung fürs Prep-Board
+
+Diese Tabelle listet **jeden physischen Pin/Draht** der Bauteile und wohin er auf dem Prep-Board bzw. ESP32 gehört — als direkte Bau-Anleitung, unabhängig davon ob per RJ11-Stecker oder direkt verlötet.
+
+| Bauteil | Bauteil-Pin/Ader | Ziel | Hinweis |
+|---|---|---|---|
+| BME280-Breakout | VCC | 3,3V | |
+| BME280-Breakout | GND | GND | |
+| BME280-Breakout | SDA | GPIO21 | gemeinsamer I2C-Bus mit AS3935 |
+| BME280-Breakout | SCL | GPIO22 | gemeinsamer I2C-Bus mit AS3935 |
+| AS3935-Modul | VCC | 3,3V | |
+| AS3935-Modul | GND | GND | |
+| AS3935-Modul | SDA | GPIO21 | gemeinsamer I2C-Bus mit BME280 |
+| AS3935-Modul | SCL | GPIO22 | gemeinsamer I2C-Bus mit BME280 |
+| AS3935-Modul | IRQ | GPIO25 | |
+| AS3935-Modul | CS | GND | nur falls Platine SPI-Pins herausführt (bei I2C-Betrieb ungenutzt, aber nicht offen lassen) |
+| AS3935-Modul | MISO | GND | s.o. |
+| AS3935-Modul | SI | 3,3V | s.o. |
+| DS18B20-Sonde | VCC (meist rot) | 3,3V | |
+| DS18B20-Sonde | GND (meist schwarz) | GND | |
+| DS18B20-Sonde | DATA (meist gelb) | GPIO4 | + 4,7 kΩ Pull-up zwischen DATA und 3,3V |
+| SEN0232 (dBA) | VCC | 3,3V/5V (Modulaufdruck prüfen) | |
+| SEN0232 (dBA) | GND | GND | |
+| SEN0232 (dBA) | AOUT | GPIO35 | |
+| SEN-15901 Regenmesser | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Regenmesser | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO27 | ESP32-interner Pull-up i.d.R. ausreichend |
+| SEN-15901 Anemometer | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Anemometer | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO14 | ESP32-interner Pull-up i.d.R. ausreichend |
+| SEN-15901 Windfahne | Ader A (variabler R, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Windfahne | Ader B (variabler R, polaritätsfrei) | Spannungsteiler-Knoten → GPIO34 | zusätzlich fester Widerstand (empfohlen 10 kΩ, 1%) zwischen 3,3V und diesem Knoten nötig |
+
+### RJ11-Pinbelegung SEN-15901 (verifiziert gegen Fine-Offset-Original-Datenblatt)
+
+Der SEN-15901 basiert, wie in [misol-compatibility.md](misol-compatibility.md) bereits hergeleitet, auf Fine-Offset-Sensorik. Das Original-Datenblatt des Herstellers (Shenzhen Fine Offset Electronics, `DS-15901-Weather_Meter.pdf`) gibt die Pinbelegung explizit an:
+
+| Sensor | RJ11-Kabel | Belegte Pins | Funktion |
+|---|---|---|---|
+| Regenmesser | eigenes, separates RJ11-Kabel | die **beiden mittleren** Kontakte | Reed-Kontakt (Schalter, kein Polaritätsbezug) |
+| Anemometer | **gemeinsames** RJ11-Kabel mit Windfahne (kurzes Verbindungskabel am Sensorarm) | Pins **2 + 3** (innere Adern) | Reed-Kontakt (Schalter) |
+| Windfahne | **gemeinsames** RJ11-Kabel mit Anemometer | Pins **1 + 4** (äußere Adern) | 8-Schalter/Widerstands-Netzwerk, 891 Ω–120 kΩ je nach Richtung |
+
+> Das Datenblatt nennt keine Aderfarben (die sind laut Community-Berichten nicht über alle Fine-Offset-Klone hinweg einheitlich) — deshalb im Zweifel per Multimeter-Durchgangsprüfung gegen die Pin-Nummern verifizieren, bevor final verlötet wird.
+
+### RJ11 entfernen und direkt aufs Prep-Board verbinden
+
+Da alle drei SEN-15901-Sensoren reine Schalter bzw. ein reines Widerstandsnetzwerk sind (**keine Polarität**, keine aktive Elektronik), ist das Entfernen der RJ11-Stecker unkritisch:
+
+1. RJ11-Stecker abschneiden, Kabel ca. 1–2 cm abisolieren
+2. Mit Multimeter im Durchgangs-/Widerstandsmodus **die beiden Adern von Regenmesser und Anemometer/Windfahne-Gemeinschaftskabel eindeutig paaren** — wichtig ist nur, dass die beiden Adern der Windfahne nicht mit denen des Anemometers vertauscht werden (beide stecken im selben Kabel)
+3. Windfahne: Probe drehen und Widerstand zwischen ihren beiden Adern messen (sollte je nach Richtung zwischen ~688 Ω und ~120 kΩ liegen, siehe Widerstandstabelle in [tasmota-config.md](tasmota-config.md)) — damit ist die Zuordnung zweifelsfrei bestätigt
+4. Anemometer/Regenmesser: Adern einfach durchklingeln (Kontakt schließt beim Drehen der Becher bzw. beim Kippen der Wippe) — Polarität egal, eine Ader auf GND, andere auf den jeweiligen GPIO
+5. Alle Verbindungen auf dem Prep-Board mit Schraub-/Verbindungsklemmen (siehe [bom.md](bom.md) Punkt 13) statt direkt verlöten — erleichtert spätere Fehlersuche/Austausch
+
+Alternative ohne Auftrennen: RJ11-Buchsen (6P4C) aufs Prep-Board löten/kleben und die Original-Stecker einfach einstecken — spart das Auftrennen, braucht aber zusätzliche Buchsenteile (nicht in der BOM enthalten).
+
 ## Blockschaltbild
 
 ```mermaid

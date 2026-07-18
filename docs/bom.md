@@ -43,6 +43,7 @@ Kurzfassung: MISOL-Sets sind für den eigenen Funk-Empfänger gebaut, nicht für
 ## Quellen
 
 - [SparkFun Weather Meter Kit SEN-15901 Hookup Guide](https://learn.sparkfun.com/tutorials/weather-meter-hookup-guide)
+- [Original-Datenblatt Shenzhen Fine Offset Electronics (RJ11-Pinbelegung)](https://cdn.sparkfun.com/assets/d/1/e/0/6/DS-15901-Weather_Meter.pdf) — Quelle für die RJ11-Pin-Tabelle in [wiring.md](wiring.md)
 - [DFRobot Gravity SEN0232 Wiki](https://wiki.dfrobot.com/Gravity_Analog_Sound_Level_Meter_SKU_SEN0232)
 - [Bosch BME280 Datenblatt](https://www.bosch-sensortec.com/products/environmental-sensors/humidity-sensors-bme280/)
 - [AS3935 Datenblatt (AMS/TE)](https://look.ams-osram.com/m/6ff54cea1cf87dc2/original/AS3935-Franklin-Lightning-Sensor-IC.pdf)
