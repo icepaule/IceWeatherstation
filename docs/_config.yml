@@ -1,0 +1,4 @@
+theme: jekyll-theme-cayman
+title: IceWeatherstation
+description: DIY-Wetterstation auf Basis ESP32 + Tasmota
+markdown: kramdown
