@@ -20,6 +20,60 @@
 - Alle ADC-Pins bewusst auf **ADC1** (GPIO32–39) — ADC2 ist bei aktivem WLAN auf dem ESP32 nicht zuverlässig nutzbar
 - Rain/Wind auf getrennte Interrupt-fähige GPIOs, da beide unabhängig voneinander und potenziell gleichzeitig Pulse liefern
 
+## Pin-Position am ESP32-WROOM-32U DevKitC V4 (Board-Beschriftung)
+
+Der 38-Pin-DevKitC-V4-Formfaktor (Espressif-Referenzdesign, auch von den meisten Klonen inkl. 32U/32UE-Antennenvariante 1:1 übernommen) hat zwei Header-Reihen. Die aufgedruckte Zahl neben "IO"/"GPIO" **ist** die GPIO-Nummer — falls auf deinem Board nur die nackte Zahl ohne "IO"-Präfix steht, bezeichnet sie trotzdem denselben GPIO. Position wird von der 3V3-/5V-Ecke aus gezählt (siehe Pin 1/19 je Reihe):
+
+**Linke Reihe (J2), von oben nach unten:**
+
+| Pos. | Aufdruck | GPIO | Im Projekt verwendet |
+|---|---|---|---|
+| 1 | 3V3 | – | 3,3V-Versorgung (mehrfach genutzt) |
+| 2 | EN | – | |
+| 3 | VP | GPIO36 | |
+| 4 | VN | GPIO39 | |
+| 5 | IO34 | **GPIO34** | ✅ Windfahne (ADC) |
+| 6 | IO35 | **GPIO35** | ✅ dBA-Sensor SEN0232 (ADC) |
+| 7 | IO32 | GPIO32 | |
+| 8 | IO33 | GPIO33 | |
+| 9 | IO25 | **GPIO25** | ✅ AS3935 IRQ |
+| 10 | IO26 | GPIO26 | |
+| 11 | IO27 | **GPIO27** | ✅ Regenmesser (Counter1) |
+| 12 | IO14 | **GPIO14** | ✅ Anemometer (Counter2) |
+| 13 | IO12 | GPIO12 | ⚠️ Strapping-Pin, beim Booten nicht belasten |
+| 14 | GND | – | |
+| 15 | IO13 | GPIO13 | |
+| 16 | D2 | GPIO9 | ⚠️ intern für Flash-SPI, nicht verwenden |
+| 17 | D3 | GPIO10 | ⚠️ intern für Flash-SPI, nicht verwenden |
+| 18 | CMD | GPIO11 | ⚠️ intern für Flash-SPI, nicht verwenden |
+| 19 | 5V | – | |
+
+**Rechte Reihe (J3), von oben nach unten:**
+
+| Pos. | Aufdruck | GPIO | Im Projekt verwendet |
+|---|---|---|---|
+| 1 | GND | – | |
+| 2 | IO23 | GPIO23 | |
+| 3 | IO22 | **GPIO22** | ✅ I2C SCL (BME280 + AS3935) |
+| 4 | TX | GPIO1 | ⚠️ Serial-Konsole, beim Flashen/Debuggen belegt |
+| 5 | RX | GPIO3 | ⚠️ Serial-Konsole, beim Flashen/Debuggen belegt |
+| 6 | IO21 | **GPIO21** | ✅ I2C SDA (BME280 + AS3935) |
+| 7 | GND | – | |
+| 8 | IO19 | GPIO19 | |
+| 9 | IO18 | GPIO18 | |
+| 10 | IO5 | GPIO5 | ⚠️ Strapping-Pin |
+| 11 | IO17 | GPIO17 | |
+| 12 | IO16 | GPIO16 | |
+| 13 | IO4 | **GPIO4** | ✅ DS18B20 (1-Wire) |
+| 14 | IO0 | GPIO0 | ⚠️ Boot-Strapping-Pin, nicht belegen |
+| 15 | IO2 | GPIO2 | ⚠️ Strapping-Pin |
+| 16 | IO15 | GPIO15 | ⚠️ Strapping-Pin |
+| 17 | D1 | GPIO8 | ⚠️ intern für Flash-SPI, nicht verwenden |
+| 18 | D0 | GPIO7 | ⚠️ intern für Flash-SPI, nicht verwenden |
+| 19 | CLK | GPIO6 | ⚠️ intern für Flash-SPI, nicht verwenden |
+
+**Alle 8 im Projekt genutzten GPIOs (21, 22, 25, 4, 27, 14, 34, 35) liegen auf normalen, unkritischen I/O-Pins — keine Kollision mit Boot-Strapping- oder internem Flash-SPI-Pin.** Quelle: [Espressif ESP32-DevKitC V4 User Guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html).
+
 ## Physische Pin-Zuordnung fürs Prep-Board
 
 Diese Tabelle listet **jeden physischen Pin/Draht** der Bauteile und wohin er auf dem Prep-Board bzw. ESP32 gehört — als direkte Bau-Anleitung, unabhängig davon ob per RJ11-Stecker oder direkt verlötet.

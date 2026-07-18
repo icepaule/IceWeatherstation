@@ -20,6 +20,21 @@ Kein fertiges Community-Template nötig — alle benötigten Bausteine sind in S
 
 Empfohlen: Die GPIO-Zuordnung **über die Tasmota-Web-Oberfläche** vornehmen (Modul-Konfigurationsseite), nicht per handgeschriebenem `Template`-JSON — die Web-UI verhindert falsch nummerierte GPIO-Komponenten-IDs, die sich zwischen Tasmota-Versionen ändern können.
 
+**Alternative: per Serial-Konsole (verifiziert für Tasmota 15.5.0(release-tasmota32)-3.3.8, 2026-06-22).** Statt der Web-UI kann jedes `GPIO<pin>`-Kommando direkt den numerischen Funktionswert setzen — praktisch fürs Erstflashen ohne WLAN. Die Werte wurden nicht geraten, sondern aus der `/md`-Seite dieses konkreten Builds ausgelesen (das Options-Array enthält die realen numerischen IDs):
+
+```
+GPIO21 640    // I2C SDA1 (BME280 + AS3935)
+GPIO22 608    // I2C SCL1 (BME280 + AS3935)
+GPIO25 4672   // AS3935 IRQ
+GPIO4 1312    // DS18x20 (DS18B20-Sonde)
+GPIO27 352    // Counter1 (Regenmesser)
+GPIO14 353    // Counter2 (Anemometer)
+GPIO34 4704   // ADC Input1 (Windfahne)
+GPIO35 4864   // ADC Range1 (dBA-Sensor SEN0232)
+```
+
+⚠️ Diese Werte gelten nur für exakt diesen Firmware-Build — bei anderer Tasmota-Version vor Gebrauch per `GPIO<pin>` (ohne Wert) den aktuellen Zustand gegenprüfen bzw. neu aus `/md` auslesen. Der `/md`- und `/cn`-Pfad ist ab Tasmota ≥15 ohne WebPassword standardmäßig für Referer-lose Requests gesperrt (`HTP: Referer '' denied. Use 'SO128 1' for HTTP API`) — für den einmaligen Auslese-Zugriff testweise `SetOption128 1` setzen, danach wieder auf `0` zurücksetzen (Standard-Absicherung bleibt so erhalten).
+
 Pinbelegung (siehe auch [wiring.md](wiring.md)):
 
 | GPIO | Komponente |
