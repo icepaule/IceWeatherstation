@@ -2,18 +2,18 @@
 
 ## Pin-Belegung (ESP32-WROOM-32U DevKitC V4)
 
-| Funktion | GPIO | Typ | Hinweis |
-|---|---|---|---|
-| BME280 SDA | 21 | I2C | gemeinsamer Bus mit AS3935 |
-| BME280 SCL | 22 | I2C | gemeinsamer Bus mit AS3935 |
-| AS3935 SDA | 21 | I2C | gemeinsamer Bus mit BME280 |
-| AS3935 SCL | 22 | I2C | gemeinsamer Bus mit BME280 |
-| AS3935 IRQ | 25 | Interrupt | Blitzereignis-Trigger |
-| DS18B20 | 4 | 1-Wire | 4,7 kΩ Pull-up gegen 3,3V |
-| Regenmesser (SEN-15901) | 27 | Interrupt (Counter1) | Reed-Kontakt, Kippwaage |
-| Anemometer (SEN-15901) | 14 | Interrupt (Counter2) | Reed-Kontakt |
-| Windfahne (SEN-15901) | 34 | ADC1 | Spannungsteiler/Potentiometer |
-| dBA-Sensor (SEN0232) | 35 | ADC1 | analoger Ausgang, 0,6–2,6V |
+| Funktion | Modulfunktion | GPIO | Typ | Hinweis |
+|---|---|---|---|---|
+| BME280 SDA | Thermo-/Hygro-/Barosensor (Temp/Feuchte/Druck) | 21 | I2C | gemeinsamer Bus mit AS3935 |
+| BME280 SCL | Thermo-/Hygro-/Barosensor (Temp/Feuchte/Druck) | 22 | I2C | gemeinsamer Bus mit AS3935 |
+| AS3935 SDA | Blitzsensor (Franklin) | 21 | I2C | gemeinsamer Bus mit BME280 |
+| AS3935 SCL | Blitzsensor (Franklin) | 22 | I2C | gemeinsamer Bus mit BME280 |
+| AS3935 IRQ | Blitzsensor (Franklin) | 25 | Interrupt | Blitzereignis-Trigger |
+| DS18B20 | Thermosensor (wasserdicht, Zusatzmessstelle) | 4 | 1-Wire | 4,7 kΩ Pull-up gegen 3,3V |
+| Regenmesser (SEN-15901) | Niederschlagsmenge | 27 | Interrupt (Counter1) | Reed-Kontakt, Kippwaage |
+| Anemometer (SEN-15901) | Windgeschwindigkeit | 14 | Interrupt (Counter2) | Reed-Kontakt |
+| Windfahne (SEN-15901) | Windrichtung | 34 | ADC1 | Spannungsteiler/Potentiometer |
+| dBA-Sensor (SEN0232) | Schallpegel (Lautstärke, A-bewertet) | 35 | ADC1 | analoger Ausgang, 0,6–2,6V |
 
 **Warum genau diese Pins:**
 - I2C-Bus (BME280 + AS3935) bewusst auf 21/22 — Tasmota-Standardbelegung, spart Konfigurationsaufwand
@@ -78,36 +78,36 @@ Der 38-Pin-DevKitC-V4-Formfaktor (Espressif-Referenzdesign, auch von den meisten
 
 Diese Tabelle listet **jeden physischen Pin/Draht** der Bauteile und wohin er auf dem Prep-Board bzw. ESP32 gehört — als direkte Bau-Anleitung, unabhängig davon ob per RJ11-Stecker oder direkt verlötet.
 
-| Bauteil | Bauteil-Pin/Ader | Ziel | Hinweis |
-|---|---|---|---|
-| BME280-Breakout | VCC | 3,3V | |
-| BME280-Breakout | GND | GND | |
-| BME280-Breakout | SDA | GPIO21 | gemeinsamer I2C-Bus mit AS3935 |
-| BME280-Breakout | SCL | GPIO22 | gemeinsamer I2C-Bus mit AS3935 |
-| AS3935-Modul | VCC | 3,3V | |
-| AS3935-Modul | GND | GND | |
-| AS3935-Modul | SDA | GPIO21 | gemeinsamer I2C-Bus mit BME280 |
-| AS3935-Modul | SCL | GPIO22 | gemeinsamer I2C-Bus mit BME280 |
-| AS3935-Modul | IRQ | GPIO25 | |
-| AS3935-Modul | CS | GND | nur falls Platine SPI-Pins herausführt (bei I2C-Betrieb ungenutzt, aber nicht offen lassen) |
-| AS3935-Modul | MISO | GND | s.o. |
-| AS3935-Modul | SI | 3,3V | s.o. |
-| DS18B20-Sonde | VCC (meist rot) | 3,3V | |
-| DS18B20-Sonde | GND (meist schwarz) | GND | |
-| DS18B20-Sonde | DATA (meist gelb) | GPIO4 | + 4,7 kΩ Pull-up zwischen DATA und 3,3V |
-| SEN0232 (dBA) | VCC | 3,3V/5V (Modulaufdruck prüfen) | |
-| SEN0232 (dBA) | GND | GND | |
-| SEN0232 (dBA) | AOUT | GPIO35 | |
-| SSD1306-OLED (optional) | VCC | 3,3V | |
-| SSD1306-OLED (optional) | GND | GND | |
-| SSD1306-OLED (optional) | SDA | GPIO21 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
-| SSD1306-OLED (optional) | SCL | GPIO22 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
-| SEN-15901 Regenmesser | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
-| SEN-15901 Regenmesser | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO27 | ESP32-interner Pull-up i.d.R. ausreichend |
-| SEN-15901 Anemometer | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
-| SEN-15901 Anemometer | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO14 | ESP32-interner Pull-up i.d.R. ausreichend |
-| SEN-15901 Windfahne | Ader A (variabler R, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
-| SEN-15901 Windfahne | Ader B (variabler R, polaritätsfrei) | Spannungsteiler-Knoten → GPIO34 | zusätzlich fester Widerstand (empfohlen 10 kΩ, 1%) zwischen 3,3V und diesem Knoten nötig |
+| Bauteil | Modulfunktion | Bauteil-Pin/Ader | Ziel | Hinweis |
+|---|---|---|---|---|
+| BME280-Breakout | Thermo-/Hygro-/Barosensor | VCC | 3,3V | |
+| BME280-Breakout | Thermo-/Hygro-/Barosensor | GND | GND | |
+| BME280-Breakout | Thermo-/Hygro-/Barosensor | SDA | GPIO21 | gemeinsamer I2C-Bus mit AS3935 |
+| BME280-Breakout | Thermo-/Hygro-/Barosensor | SCL | GPIO22 | gemeinsamer I2C-Bus mit AS3935 |
+| AS3935-Modul | Blitzsensor (Franklin) | VCC | 3,3V | |
+| AS3935-Modul | Blitzsensor (Franklin) | GND | GND | |
+| AS3935-Modul | Blitzsensor (Franklin) | SDA | GPIO21 | gemeinsamer I2C-Bus mit BME280 |
+| AS3935-Modul | Blitzsensor (Franklin) | SCL | GPIO22 | gemeinsamer I2C-Bus mit BME280 |
+| AS3935-Modul | Blitzsensor (Franklin) | IRQ | GPIO25 | |
+| AS3935-Modul | Blitzsensor (Franklin) | CS | GND | nur falls Platine SPI-Pins herausführt (bei I2C-Betrieb ungenutzt, aber nicht offen lassen) |
+| AS3935-Modul | Blitzsensor (Franklin) | MISO | GND | s.o. |
+| AS3935-Modul | Blitzsensor (Franklin) | SI | 3,3V | s.o. |
+| DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | VCC (meist rot) | 3,3V | |
+| DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | GND (meist schwarz) | GND | |
+| DS18B20-Sonde | Thermosensor (wasserdicht, Zusatzmessstelle) | DATA (meist gelb) | GPIO4 | + 4,7 kΩ Pull-up zwischen DATA und 3,3V |
+| SEN0232 (dBA) | Schallpegel (Lautstärke, A-bewertet) | VCC | 3,3V/5V (Modulaufdruck prüfen) | |
+| SEN0232 (dBA) | Schallpegel (Lautstärke, A-bewertet) | GND | GND | |
+| SEN0232 (dBA) | Schallpegel (Lautstärke, A-bewertet) | AOUT | GPIO35 | |
+| SSD1306-OLED (optional) | Anzeige (Live-Werte am Gehäuse) | VCC | 3,3V | |
+| SSD1306-OLED (optional) | Anzeige (Live-Werte am Gehäuse) | GND | GND | |
+| SSD1306-OLED (optional) | Anzeige (Live-Werte am Gehäuse) | SDA | GPIO21 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
+| SSD1306-OLED (optional) | Anzeige (Live-Werte am Gehäuse) | SCL | GPIO22 | dritter Teilnehmer am selben I2C-Bus (BME280+AS3935) |
+| SEN-15901 Regenmesser | Niederschlagsmenge | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Regenmesser | Niederschlagsmenge | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO27 | ESP32-interner Pull-up i.d.R. ausreichend |
+| SEN-15901 Anemometer | Windgeschwindigkeit | Ader A (Reed-Kontakt, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Anemometer | Windgeschwindigkeit | Ader B (Reed-Kontakt, polaritätsfrei) | GPIO14 | ESP32-interner Pull-up i.d.R. ausreichend |
+| SEN-15901 Windfahne | Windrichtung | Ader A (variabler R, polaritätsfrei) | GND | RJ11-Pin: siehe Tabelle unten |
+| SEN-15901 Windfahne | Windrichtung | Ader B (variabler R, polaritätsfrei) | Spannungsteiler-Knoten → GPIO34 | zusätzlich fester Widerstand (empfohlen 10 kΩ, 1%) zwischen 3,3V und diesem Knoten nötig |
 
 ### RJ11-Pinbelegung SEN-15901 (verifiziert gegen Fine-Offset-Original-Datenblatt)
 
