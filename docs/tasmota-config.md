@@ -109,6 +109,13 @@ AS3935settings           // aktuelle Konfiguration zur Kontrolle anzeigen
 
 Erfahrungswert aus der Luft1-Station: `Outdoors`-Modus ist bei Freiluft-Montage entscheidend gegen Fehlalarme (`Indoors`-Modus hat deutlich höhere, für den Außeneinsatz zu empfindliche Verstärkung). I2C-Adresse ist bei diesem Sensor-Typ fix `0x03` (kein Konfigurationsschritt nötig). Bei anhaltenden Fehlalarmen zusätzlich `AS3935setnf` (Noise-Floor-Level 0–7) manuell nachjustieren.
 
+⚠️ **Live gefunden bei echtem Gewitter (2026-07-19):** Erstkontakt mit realem Blitzgeschehen zeigte trotz korrekt eingerichteter GPIOs durchgehend `Event:0, Distance:0, Energy:0` — Ursache war `Tunecaps:0` in `AS3935settings` (Antennen-Abstimmkondensator nie kalibriert; `0` ist hier der rohe Minimalwert, keine neutrale "kein Tuning nötig"-Einstellung). Ohne Tuning auf die geforderten 500 kHz Resonanzfrequenz sinkt die Empfindlichkeit drastisch. Fix:
+```
+AS3935calibrate      // "calibration failed":0 = Erfolg (0 Fehler)
+AS3935disturber 1    // Kalibrierung schaltet Disturber-Filter intern ab und lässt ihn AUS zurück — danach manuell wieder anschalten!
+```
+Alternative laut [Tasmota-Doku](https://tasmota.github.io/docs/AS3935/): Manche Module haben den korrekten, werksseitig ermittelten Tuning-Wert als Aufkleber auf der Platine — dann direkt `AS3935settunecaps <Wert>` statt Auto-Kalibrierung. Nach jedem `AS3935calibrate`/`AS3935settunecaps` immer `AS3935settings` gegenprüfen (Disturber-Status!) und danach live abwarten, ob reale Blitze jetzt registriert werden.
+
 ## 6. OLED-Display (Hailege 0,96" SSD1306, 128×64, I2C, 4-Pin)
 
 Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Braucht aber einen zusätzlichen **virtuellen Marker-Pin** (s.u.).

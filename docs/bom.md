@@ -37,6 +37,33 @@ Für **zwei baugleiche Geräte**. Wo nichts anderes vermerkt ist, gilt die Menge
 | 14 | Silikagel-Beutel, wiederverwendbar | 1× Packung | Gegen Kondenswasser im geschlossenen Gehäuse |
 | 15 | SSD1306 OLED 0,96" I2C (optional) | 2× | Alternative/Ergänzung zum Web-UI — direkt ablesbar ohne Browser, siehe [setup-guide.md](setup-guide.md) |
 
+## Erweiterungssensoren (geplant, 2026-07-19)
+
+Alle nativ von Tasmota unterstützt, kein Custom-Treiber nötig. **Keiner davon gehört ins TFA-Dostmann-Schutzgehäuse** (Punkt 3b) — das ist speziell fürs Blocken von Sonne/Regen bei gleichzeitig freier Luftzirkulation für den BME280 gebaut; Sensoren, die selbst freie Sicht zum Himmel brauchen (Licht/UV), würden dort ja genau das verlieren, wovor das Gehäuse schützt.
+
+| # | Bauteil | Modell | Menge | Bezugsquelle | Hinweis |
+|---|---|---|---|---|---|
+| 16 | Helligkeit (Lux) | **BH1750** I2C-Breakout | 2× | Amazon.de / AZ-Delivery | I2C, teilt sich den bestehenden Bus (GPIO21/22) — braucht freie Sicht zum Himmel, NICHT im Schutzgehäuse (Punkt 3b) montieren |
+| 17 | UV-Index | **VEML6070** I2C-Breakout | 2× | Amazon.de / AliExpress | I2C, gleicher Bus — ebenfalls freie Sicht zum Himmel nötig, NICHT im Schutzgehäuse |
+| 18 | Feinstaub (PM2,5/PM10) | **PMS5003** oder **PMS7003** | 2× | Amazon.de / AZ-Delivery | UART (2 GPIOs, z.B. GPIO16/17), braucht **eigenes** belüftetes Gehäuse mit Lüfter-Ansaugung — andere Bauform als der BME280-Strahlungsschutz, nicht kombinierbar |
+| 19 | Gassensor (Luftqualität) | **MQ135** (bereits vorhanden, 2× im Bestand) | 2× vorhanden | — | Siehe Hinweis unten — braucht 5V + Spannungsteiler, teils drinnen/teils draußen sinnvoll |
+
+### MQ135-Hinweise (2× bereits vorhanden)
+
+⚠️ **MQ135 braucht zwingend Luftaustausch mit der zu messenden Umgebung** — das Sensorelement (beheiztes SnO₂) reagiert chemisch mit der umgebenden Luft. In einem **vollständig geschlossenen** Gehäuse misst er nur die eingeschlossene Luft darin, nicht die Außenluft.
+
+Sinnvolle Aufteilung für die zwei vorhandenen Module:
+- **Ein MQ135 im geschlossenen Hauptgehäuse** — hier bewusst *ohne* Außenluftkontakt, als interner Sicherheits-/Ausgasungs-Detektor (erkennt z.B. eine überhitzende Batterie/Verkabelung) — genau dafür ist ein geschlossenes Gehäuse hier richtig, da die Innenraumluft selbst überwacht werden soll
+- **Der zweite MQ135 extern** für echte Außenluftqualität — braucht eigenes belüftetes UND wettergeschütztes Gehäuse (Feuchtigkeit/Regen schadet dem Sensorelement dauerhaft, anders als beim BME280 aber ohne dessen einfache "nur Luft, kein Wasser"-Anforderung — MQ-Sensoren vertragen dauerhafte Nässe generell schlecht)
+
+⚠️ **Hardware-Details:**
+- Heizer braucht **5V** (nicht 3,3V) — separate 5V-Versorgung, nicht vom ESP32-3,3V-Pin
+- Analogausgang kann laut Datenblatt **über 3,3V** ansteigen — zwingend Spannungsteiler vor dem ESP32-ADC-Pin nötig (z.B. 10 kΩ + 15 kΩ), sonst Risiko für den ADC-Eingang
+- Kontinuierlicher Heizer-Stromverbrauch **~150–200 mA pro Modul** (2× ≈ 300–400 mA zusätzlich einplanen — Netzteil-Dimensionierung prüfen, kein Low-Power-Sensor)
+- **24–48h Einbrennzeit** nötig, bevor Messwerte einigermaßen stabil sind; nach jedem Stromausfall erneut 3–5 Minuten Aufwärmzeit
+- Tasmota unterstützt MQ135 nativ über den generischen `ADC`-Gassensor-Typ (`AdcParam` mit `ANALOG_MQ_TYPE`), Kalibrierung gegen bekannte Frischluft nötig
+- Grundsätzlich eher als Innenraum-Luftqualitätssensor konzipiert — bei Außeneinsatz (Temperatur-/Feuchte-Schwankungen) mit reduzierter Genauigkeit rechnen
+
 ## Warum SparkFun statt MISOL-Fertigsensorik?
 
 Kurzfassung: MISOL-Sets sind für den eigenen Funk-Empfänger gebaut, nicht für direkten GPIO-Anschluss. Details und Alternativwege: [misol-compatibility.md](misol-compatibility.md).

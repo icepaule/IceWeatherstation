@@ -193,4 +193,15 @@ graph TD
 3. Danach 1-Wire (DS18B20), dann die beiden Interrupt-Leitungen (Regen/Wind), zuletzt die ADC-Leitungen (Windfahne/dBA)
 4. Erst nach erfolgreichem Einzeltest final ins IP65-Gehäuse verkabeln (Zugentlastung an jeder Kabelverschraubung nicht vergessen)
 
+## Fritzing-Projektdatei
+
+[`fritzing/IceWeatherstation.fzz`](fritzing/IceWeatherstation.fzz) — Breadboard-Verdrahtungsplan für die komplette Station (ESP32 + BME280 + AS3935 + DS18B20 + Regenmesser/Anemometer/Windfahne + dBA-Sensor + OLED + Status-LED), programmatisch aus dieser Pin-Tabelle generiert (2026-07-19).
+
+⚠️ **Bekannte Einschränkungen (Hand-Erzeugung ohne Fritzing-GUI zur visuellen Prüfung):**
+- **ESP32-WROOM-32U DevKitC V4:** echtes, community-gepflegtes Fritzing-Part ([Fritzing-Forum](https://forum.fritzing.org/t/esp32-devkitc-v4-ready/17213)), Pin-für-Pin gegen die Tabelle oben verifiziert (alle 9 im Projekt genutzten GPIOs stimmen exakt überein) — in der `.fzz` eingebettet, kein separater Download nötig.
+- **BME280, DS18B20:** echte, passende Fritzing-Core-Parts (SparkFun-Breakout bzw. DS18B20-Sonde).
+- **AS3935, SEN0232 (dBA), SSD1306-OLED:** Für diese drei existiert **kein** exaktes Fritzing-Part — im Bild durch elektrisch/pin-technisch passende Platzhalter-Footprints ersetzt (MPU6050/GY-521 fürs AS3935 wegen INT+I2C-Pins, TEMT6000-Breakout fürs dBA-Modul wegen VCC/GND/Signal, Grove-OLED fürs SSD1306 wegen GND/VCC/SDA/SCL) — Beschriftung im Bauteil-Titel macht das jeweils kenntlich. Optik weicht daher vom realen Bauteil ab, die Pin-Zuordnung/Verdrahtung selbst ist korrekt.
+- **Regenmesser/Anemometer:** als Reed-Kontakt-Bauteil dargestellt, **Windfahne** als variabler Widerstand (2 der 3 Pins genutzt) — beides funktional exakt, wie im SEN-15901 auch tatsächlich verbaut.
+- Die Netzliste (welcher Pin mit welchem verbunden ist) wurde direkt aus der obigen Tabelle erzeugt und ist korrekt hinterlegt. Die **Wire-Endpunkte** im Breadboard-Bild sind aber nicht pixelgenau an den SVG-Pins ausgerichtet (mangels visueller Prüfmöglichkeit ohne Fritzing-GUI hier) — nach dem ersten Öffnen ggf. einzelne Wire-Enden per Drag ans jeweilige Pin-Symbol nachziehen. Fritzing zeigt die tatsächliche Verbindung beim Anklicken eines Pins aber bereits korrekt an (Ratsnest/Hervorhebung), unabhängig von der Wire-Optik.
+
 Weiter mit: [tasmota-config.md](tasmota-config.md) für die Firmware-Seite dieser Verkabelung.
