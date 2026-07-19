@@ -39,6 +39,7 @@ Zeilenformat OLED (auf Nutzerwunsch):
 
 import string
 import json
+import persist
 
 # Windfahnen-Kalibrierungstabelle: roher ADC-Wert (0-4095, GPIO34/Analog A1)
 # -> Windrichtung in Grad (0=Nord, im Uhrzeigersinn).
@@ -89,23 +90,46 @@ def zero_list(n)
 end
 
 class IceWeather : Driver
-  var rain_hourly          # 24 Slots, mm Regen je Kalenderstunde (rollierend)
-  var pressure_hourly       # 24 Slots, BME280-Druck-Schnappschuss je Kalenderstunde
-  var last_hour
-  var pressure_trend        # -1 fallend, 0 gleich/unbekannt, 1 steigend
   var wind_ms, wind_dir_deg
   var last_counter1, last_counter2
+  var counters_ready     # false bis der erste Tick nach dem (Neu-)Start die
+                          # Counter-Basiswerte gesetzt hat - verhindert einen
+                          # falschen Regen-Ausschlag direkt nach einem Neustart
   var quiet_mode        # true = Nachtruhe aktiv (Display+LED aus)
 
+  # Regen-/Druck-Ringpuffer ueberleben einen Neustart nur, wenn sie explizit
+  # persistiert werden (RAM-Variablen sind sonst nach jedem Reboot leer) -
+  # ohne das wuerde jeder Neustart bis zu 24h Regen-Historie loeschen.
+  #
+  # WICHTIG (live gefunden 2026-07-19): "persist.foo = self.bar" mit self.bar
+  # als Liste erzeugt KEINE gemeinsame Referenz - Aenderungen an self.bar
+  # tauchten NICHT in persist.foo auf, persist.save() schrieb dadurch immer
+  # die alte/leere Kopie. Fix: rain_hourly/pressure_hourly/last_hour/
+  # pressure_trend werden NICHT mehr in self gehalten, sondern ausschliesslich
+  # direkt ueber persist.rain_hourly usw. gelesen/geschrieben - persist ist
+  # damit die einzige Quelle der Wahrheit, keine zweite Kopie kann divergieren.
+  # persist.dirty() ist zusaetzlich noetig, weil In-Place-Aenderungen an
+  # Listen von persist nicht automatisch erkannt werden.
   def init()
-    self.rain_hourly = zero_list(24)
-    self.pressure_hourly = zero_list(24)
-    self.last_hour = -1
-    self.pressure_trend = 0
+    if persist.find("rain_hourly", nil) == nil
+      persist.rain_hourly = zero_list(24)
+    end
+    if persist.find("pressure_hourly", nil) == nil
+      persist.pressure_hourly = zero_list(24)
+    end
+    if persist.find("rain_last_hour", nil) == nil
+      persist.rain_last_hour = -1
+    end
+    if persist.find("pressure_trend", nil) == nil
+      persist.pressure_trend = 0
+    end
+    persist.save()
+
     self.wind_ms = 0.0
     self.wind_dir_deg = -1
     self.last_counter1 = 0
     self.last_counter2 = 0
+    self.counters_ready = false
     self.quiet_mode = nil   # unbekannt -> erzwingt sofortige Anwendung beim ersten (gueltigen) Check
     tasmota.add_cron("*/10 * * * * *", / -> self.refresh_display(), "oled_refresh")
     tasmota.add_cron("0 0 * * * *", / -> self.check_quiet_hours(), "quiet_hours_check")
@@ -169,29 +193,37 @@ class IceWeather : Driver
   # Luftdruck-Trend gegen den 24h alten Schnappschuss im selben Slot
   # bestimmen, BEVOR der neue Druckwert den Slot ueberschreibt.
   def check_hour_rollover(pressure)
-    var h = tasmota.time_dump(tasmota.rtc()['local'])['hour']
-    if h != self.last_hour
-      self.rain_hourly[h] = 0.0
+    var epoch = tasmota.rtc()['local']
+    if epoch < 1000000000
+      return   # NTP noch nicht synchronisiert (Epoch nahe 0/1970) - erst warten,
+               # sonst wuerde die falsche Stunde faelschlich einen Rollover
+               # ausloesen und den falschen Ringpuffer-Slot leeren (live gefunden!)
+    end
+    var h = tasmota.time_dump(epoch)['hour']
+    if h != persist.rain_last_hour
+      persist.rain_hourly[h] = 0.0
       if pressure != nil && pressure > 0
-        var old = self.pressure_hourly[h]
+        var old = persist.pressure_hourly[h]
         if old != nil && old > 0
           if pressure > old
-            self.pressure_trend = 1
+            persist.pressure_trend = 1
           elif pressure < old
-            self.pressure_trend = -1
+            persist.pressure_trend = -1
           else
-            self.pressure_trend = 0
+            persist.pressure_trend = 0
           end
         end
-        self.pressure_hourly[h] = pressure
+        persist.pressure_hourly[h] = pressure
       end
-      self.last_hour = h
+      persist.rain_last_hour = h
+      persist.dirty()   # rain_hourly/pressure_hourly wurden in-place geaendert
+      persist.save()
     end
   end
 
   def rain_24h()
     var total = 0.0
-    for v : self.rain_hourly
+    for v : persist.rain_hourly
       total += v
     end
     return total
@@ -209,15 +241,37 @@ class IceWeather : Driver
     end
     self.check_hour_rollover(pressure)
 
+    # Erster Tick nach (Neu-)Start: nur die Counter-Basiswerte uebernehmen,
+    # OHNE ein Delta zu berechnen - sonst wuerde der komplette seit dem
+    # letzten Neustart aufgelaufene Counter-Stand faelschlich als Regen/Wind
+    # in der aktuellen Sekunde gezaehlt (Tasmota-Counter ueberleben manche
+    # Neustarts via RTC-Speicher, unser eigenes last_counter1/2 aber nicht).
+    if !self.counters_ready
+      if js.find("COUNTER") != nil
+        if js["COUNTER"].find("C1") != nil
+          self.last_counter1 = js["COUNTER"]["C1"]
+        end
+        if js["COUNTER"].find("C2") != nil
+          self.last_counter2 = js["COUNTER"]["C2"]
+        end
+        self.counters_ready = true
+      end
+      return
+    end
+
     # Regen: Counter1-Delta seit letztem Tick x 0.2794 mm, in aktuellen Stunden-Slot
     if js.find("COUNTER") != nil && js["COUNTER"].find("C1") != nil
       var c1 = js["COUNTER"]["C1"]
       var delta1 = c1 - self.last_counter1
       if delta1 < 0
-        delta1 = 0  # Counter-Reset (z.B. nach Neustart) abgefangen
+        delta1 = 0  # Counter-Reset abgefangen
       end
-      var h = tasmota.time_dump(tasmota.rtc()['local'])['hour']
-      self.rain_hourly[h] += delta1 * 0.2794
+      if delta1 > 0
+        var h = tasmota.time_dump(tasmota.rtc()['local'])['hour']
+        persist.rain_hourly[h] += delta1 * 0.2794
+        persist.dirty()
+        persist.save()
+      end
       self.last_counter1 = c1
     end
 
@@ -273,15 +327,15 @@ class IceWeather : Driver
       if temp != nil && pressure != nil
         var trend_str = "-"
         if SHOW_TREND_ARROWS
-          if self.pressure_trend > 0
+          if persist.pressure_trend > 0
             trend_str = "↑"
-          elif self.pressure_trend < 0
+          elif persist.pressure_trend < 0
             trend_str = "↓"
           end
         else
-          if self.pressure_trend > 0
+          if persist.pressure_trend > 0
             trend_str = "U"
-          elif self.pressure_trend < 0
+          elif persist.pressure_trend < 0
             trend_str = "D"
           end
         end

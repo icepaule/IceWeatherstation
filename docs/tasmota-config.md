@@ -239,4 +239,37 @@ MQTT-Zugangsdaten sind projektintern, **nicht** in diesem öffentlichen Repo dok
 
 Ergebnis im Home-Assistant-Dashboard `lovelace-wetter` (Tab „Aktuell"): eigener Kasten „🏠 IceWeatherstation (lokal, nicht online)" mit grünem Rahmen, klar von der Online-Wetterquelle (DWD/API oben im Dashboard) unterschieden.
 
+⚠️ **Einheiten-Fallstricke, live gefunden (2026-07-19):**
+- Eigene `IceWeather`-Felder (WindSpeed/WindDir/Rain24h) haben von Haus aus **keine** Einheit in HA (Tasmotas Discovery kennt nur bei bekannten Standard-Feldnamen automatisch die richtige Einheit, nicht bei selbst erfundenen JSON-Keys).
+- `sensor.tasmota_as3935_distance_2` bekommt von der HA-Tasmota-Integration fälschlich die Einheit **cm** zugewiesen, obwohl der Wert tatsächlich in **km** vorliegt (Tasmotas eigenes Web-UI zeigt korrekt "km") — ein Integrations-seitiger Mapping-Fehler, nicht in Tasmota selbst behebbar.
+
+Fix: `homeassistant: customize:`-Block in einem HA-Package (hier: `packages/iceweatherstation.yaml`, außerhalb dieses Repos in der HA-Konfiguration). Wichtig: **nicht** die neuere Per-Entity-"Anzeigeeinheit"-Option in den HA-Entity-Einstellungen verwenden — die würde bei einem `device_class: distance`-Sensor automatisch eine (hier falsche) Einheiten-Umrechnung anwenden und den ohnehin schon korrekten km-Wert nochmal verfälschen. Der klassische `customize`-Block überschreibt die Einheit nur als Label, ohne Umrechnung:
+```yaml
+homeassistant:
+  customize:
+    sensor.tasmota_as3935_distance_2:
+      device_class: null   # verhindert HAs automatische Einheiten-Umrechnung
+      unit_of_measurement: "km"
+    sensor.tasmota_iceweather_windspeed:
+      unit_of_measurement: "m/s"
+    sensor.tasmota_iceweather_winddir:
+      unit_of_measurement: "°"
+    sensor.tasmota_iceweather_rain24h:
+      unit_of_measurement: "mm"
+```
+Wirkt erst nach vollständigem HA-Core-Neustart oder *Entwicklertools → YAML → Alle YAML-Konfigurationen neu laden*.
+
+## 11. Regen-24h-Ringpuffer: Persistenz über Neustarts hinweg
+
+⚠️ **Größter funktionaler Bug, live gefunden (2026-07-19):** Der 24h-Regen-Ringpuffer (siehe Abschnitt 4 der Windfahne / [autoexec.be](../firmware/berry/autoexec.be)) lebte ursprünglich nur im RAM — **jeder Neustart löschte die komplette Regen-Historie**, nicht nur die aktuelle Stunde. Bei einem restart-anfälligen System (OTA-Updates, Watchdog-Resets, Konfigurationsänderungen — wie in diesem Projekt mehrfach erlebt) bedeutet das: Regen, der vor dem letzten Neustart fiel, fehlt in der 24h-Anzeige, obwohl er noch im 24h-Fenster liegt. Symptom: Uptime kürzer als 24h + plausibel zu niedrige Regenmenge ist ein starker Hinweis auf genau dieses Problem.
+
+Fix: `import persist` (Tasmota-Berry-Standardmodul), Ringpuffer + Stundenmarker + Druck-Trend werden jetzt über Neustarts hinweg gespeichert. **Zwei weitere Fallstricke dabei gefunden:**
+
+1. **`persist.foo = self.bar` mit einer Liste erzeugt KEINE gemeinsame Referenz.** Nachträgliche Änderungen an `self.bar` tauchen nicht automatisch in `persist.foo` auf — `persist.save()` schreibt dann weiterhin die alte Kopie. Fix: keine zusätzliche `self`-Kopie halten, ausschließlich direkt über `persist.rain_hourly[h] = ...` lesen/schreiben, damit es nur eine einzige Quelle der Wahrheit gibt. `persist.dirty()` zusätzlich nötig, da In-Place-Änderungen an Listen von `persist` nicht automatisch erkannt werden (nur echte Zuweisungen `persist.foo = ...` triggern das automatisch).
+2. **NTP-Boot-Race betrifft nicht nur die Nachtruhe, sondern auch den Stunden-Rollover.** Direkt nach dem Booten läuft `tasmota.rtc()` kurzzeitig mit einer ungültigen Epoch (~0/1970, vor NTP-Sync) — das lieferte eine falsche "Stunde", die fälschlich einen Stundenwechsel auslöste und dabei den falschen Ringpuffer-Slot leerte (konkret beobachtet: die komplette bis dahin aufgelaufene Regenmenge wurde beim nächsten Neustart gelöscht, obwohl `persist` sie korrekt geladen hatte — der Bug schlug NACH dem Laden zu). Fix: dieselbe Epoch-Plausibilitätsprüfung (`< 1000000000` → überspringen) wie bei der Nachtruhe-Prüfung auch für `check_hour_rollover()` ergänzen.
+
+Zusätzlich: erster Tick nach jedem Neustart setzt nur die Counter-Basiswerte (`last_counter1`/`last_counter2`), OHNE ein Delta zu berechnen — sonst würde der komplette seit dem letzten Neustart aufgelaufene Tasmota-Counter-Stand (der über manche Neustarts hinweg im RTC-Speicher erhalten bleibt) fälschlich als Regen/Wind in der ersten Sekunde nach dem Neustart gezählt.
+
+Verifiziert per Simulation: `Counter1 <wert>` künstlich erhöhen, `Rain24h` prüfen, `Restart 1`, erneut prüfen — Wert bleibt jetzt über mehrere Neustarts hinweg korrekt erhalten.
+
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.

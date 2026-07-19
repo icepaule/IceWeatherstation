@@ -24,7 +24,7 @@ index 7a3c559..8e09bb7 100644
        }
      }
 diff --git a/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino b/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
-index 89a2cfe..8723dfc 100644
+index 89a2cfe..7fa306e 100644
 --- a/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
 +++ b/tasmota/tasmota_xsns_sensor/xsns_02_analog.ino
 @@ -817,7 +817,13 @@ void AdcShow(bool json) {
@@ -42,15 +42,17 @@ index 89a2cfe..8723dfc 100644
  #endif  // USE_WEBSERVER
            }
  #ifdef USE_LIGHT
-@@ -876,7 +882,13 @@ void AdcShow(bool json) {
+@@ -876,7 +882,15 @@ void AdcShow(bool json) {
            ResponseAppend_P(PSTR("\"" D_JSON_RANGE "%s\":%s"), adc_channel, range_chr);
  #ifdef USE_WEBSERVER
          } else {
 -          WSContentSend_PD(HTTP_SNS_RANGE_CHR, adc_name, range_chr);
-+          // IceWeatherstation: "Schallpegel (roh)" statt "ADC1 Range" fuer
-+          // den einzigen ADC-Range-Kanal dieses Projekts (GPIO35, SEN0232).
++          // IceWeatherstation: "Schallpegel" statt "ADC1 Range" fuer den
++          // einzigen ADC-Range-Kanal dieses Projekts (GPIO35, SEN0232) -
++          // dieser Wert ist bereits per AdcParam kalibriertes dBA, NICHT roh
++          // (anders als "Windfahne (roh)" oben, die tatsaechlich unkalibriert ist).
 +          if (0 == strcmp(adc_name, "ADC1")) {
-+            WSContentSend_PD(PSTR("{s}Schallpegel (roh){m}%s{e}"), range_chr);
++            WSContentSend_PD(PSTR("{s}Schallpegel{m}%s dBA{e}"), range_chr);
 +          } else {
 +            WSContentSend_PD(HTTP_SNS_RANGE_CHR, adc_name, range_chr);
 +          }
