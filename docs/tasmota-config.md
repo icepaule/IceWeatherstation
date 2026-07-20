@@ -279,4 +279,37 @@ Zusätzlich: erster Tick nach jedem Neustart setzt nur die Counter-Basiswerte (`
 
 Verifiziert per Simulation: `Counter1 <wert>` künstlich erhöhen, `Rain24h` prüfen, `Restart 1`, erneut prüfen — Wert bleibt jetzt über mehrere Neustarts hinweg korrekt erhalten.
 
+## 12. Regen-Vibrationsunterdrückung durch den PV-Solartracker (Cross-MQTT)
+
+⚠️ **Live gefunden (2026-07-20):** Der PV-Solartracker (`esp_solar`, [followmysun-deploy](https://github.com/) — separates Projekt) hängt im selben Schuppen wie die Wetterstation. Jede Nachführbewegung des Aktuators erzeugt genug mechanische Vibration, um am Reed-Kontakt des Regenmessers (`Counter1`) falsche Kippen auszulösen — die Bewegung "klingt" für den Reed-Kontakt wie Regen. `CounterDebounce` (Abschnitt 2) filtert nur Kontaktprellen im Millisekundenbereich, keine anhaltende Vibration über mehrere Sekunden, und `Counter1` selbst hat keine Rules-Ebene davor (reiner Hardware-Pulszähler). Ein Fix musste daher im Berry-Skript selbst ansetzen.
+
+**Lösung:** [firmware/berry/autoexec.be](../firmware/berry/autoexec.be) abonniert per `mqtt.subscribe()` zusätzlich zwei Topics des Solartrackers auf demselben MQTT-Broker (10.10.12.100):
+
+- `tele/solar/SENSOR` → Feld `SENSOR.Motion` (0=Stopp, 1=Hoch, 2=Runter, siehe `solar_main.py`). Bewegung aktiv → Regen-Unterdrückung bis zu einem Hard-Cap von `RAIN_SUPPRESS_MAX_S=120` s ab Bewegungsbeginn verlängern. Bewegung gestoppt → nur noch `RAIN_SUPPRESS_TAIL_S=5` s Nachlaufzeit (mechanisches Nachschwingen), dann automatisch aus.
+- `tele/solar/LWT` → bei `"Offline"` die Unterdrückung sofort aufheben (Fail-Safe, falls der Tracker ausfällt/hängen bleibt, bevor er "Stopp" meldet — sonst würde die Regenmessung dauerhaft blind bleiben).
+
+Während der Unterdrückung wird der `Counter1`-Delta **nicht** verworfen, sondern separat in `RainSuppressedMM`/`RainSuppressCount` mitgezählt (Diagnose/Tuning) — `Rain24h` bleibt unverändert. `last_counter1` wird trotzdem weitergeschrieben, damit der unterdrückte Delta nicht am Ende der Unterdrückung auf einen Schlag nachgezählt wird.
+
+Neue Felder in der `IceWeather`-MQTT-JSON (`tele/.../SENSOR`) sowie im Tasmota-Web-UI (nur sichtbar, sobald mindestens einmal unterdrückt wurde):
+
+```json
+"IceWeather":{"WindSpeed":0.67,"WindDir":135,"Rain24h":61.19,"RainSuppressActive":0,"RainSuppressedMM":1.12,"RainSuppressCount":2}
+```
+
+Für Home Assistant empfiehlt sich ein weiterer `customize`-Eintrag analog Abschnitt 10:
+```yaml
+    sensor.tasmota_iceweather_rainsuppressedmm:
+      unit_of_measurement: "mm"
+```
+
+**Verifiziert am echten Gerät (2026-07-20), per `mosquitto_pub` simulierte Tracker-Nachrichten + `Counter1 <wert>`-Testkippen:**
+1. `Motion:1` per MQTT gesendet → `RainSuppressActive` wechselt sofort auf `1`.
+2. Während aktiver Unterdrückung `Counter1` künstlich um 3 erhöht → `Rain24h` bleibt unverändert, `RainSuppressedMM`/`RainSuppressCount` steigen korrekt.
+3. `Motion:0` gesendet, 5s Nachlaufzeit abgewartet → `RainSuppressActive` wird `0`.
+4. Danach `Counter1` erneut erhöht (simuliert echten Regen) → wird wie gewohnt in `Rain24h` gezählt.
+5. Fail-Safe: `tele/solar/LWT`→`"Offline"` während aktiver Unterdrückung gesendet → `RainSuppressActive` fällt sofort auf `0` (nicht erst nach 120s Hard-Cap).
+6. Während der Tests startete der reale Solartracker zufällig neu und führte eine echte Nachführbewegung aus (`stat/solar/DEBUG`: `"Motor: Hoch"` → `"Motor: Stopp (overshoot)"`) — dabei stieg `RainSuppressCount` real um 1 (echte Vibrationskippe korrekt unterdrückt), `Rain24h` blieb dabei unverändert. Bestätigt die Funktion nicht nur synthetisch, sondern mit echtem Tracker-Verkehr.
+
+⚠️ Die Testkippen (Schritte 2 und 4) haben `Rain24h`/`persist.rain_hourly` um insgesamt ca. 0,28 mm real erhöht (Schritt 4, absichtlich außerhalb des Unterdrückungsfensters ausgelöst, um die Normalzählung zu prüfen) — vernachlässigbar und läuft mit dem rollierenden 24h-Fenster von selbst wieder heraus.
+
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.

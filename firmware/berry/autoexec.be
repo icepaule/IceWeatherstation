@@ -40,6 +40,7 @@ Zeilenformat OLED (auf Nutzerwunsch):
 import string
 import json
 import persist
+import mqtt
 
 # Windfahnen-Kalibrierungstabelle: roher ADC-Wert (0-4095, GPIO34/Analog A1)
 # -> Windrichtung in Grad (0=Nord, im Uhrzeigersinn).
@@ -77,6 +78,24 @@ var SHOW_TREND_ARROWS = false   # gleiches Basis-Font wie beim Grad-Zeichen, vor
 var QUIET_START_HOUR = 22
 var QUIET_END_HOUR = 8
 
+# Regen-Unterdrueckung waehrend Solartracker-Bewegung: Der PV-Tracker (esp_solar,
+# MQTT-Topic "solar") haengt im selben Schuppen und erzeugt beim Verfahren des
+# Panels genug Vibration, um am Reed-Kontakt-Regenmesser falsche Kippen auszuloesen
+# (live beobachtet 2026-07-20). Counter1 ist ein reiner Hardware-Pulszaehler ohne
+# Rules-Ebene davor (siehe docs/tasmota-config.md Abschnitt 2) - Filtern geht daher
+# nur hier im Berry-Skript, per MQTT-Cross-Subscribe auf tele/solar/SENSOR
+# (SENSOR.Motion, siehe followmysun-deploy/esp32-evb-ea-migration/solar_main.py)
+# und tele/solar/LWT als Fail-Safe.
+var RAIN_SUPPRESS_TAIL_S = 5     # Nachlaufzeit nach Bewegungsende (mechanisches
+                                  # Nachschwingen der Konstruktion)
+var RAIN_SUPPRESS_MAX_S = 120    # Hard-Cap ab Bewegungsbeginn, falls kein "Stopp"
+                                  # mehr ankommt (Netz-/MQTT-Ausfall des Trackers) -
+                                  # ein Vollhub dauert laut Tracker-Doku 30-60s,
+                                  # 120s ist grosszuegiger Sicherheitsabstand.
+                                  # Fail-Safe: lieber vereinzelt falsche Kippen
+                                  # zaehlen als dauerhaft blind fuer echten Regen
+                                  # zu werden, falls der Tracker haengen bleibt.
+
 # Berry (Tasmota) kennt keine Python-artige Listen-Multiplikation ([0.0]*24) -
 # deshalb ueber eine Schleife befuellen.
 def zero_list(n)
@@ -96,6 +115,15 @@ class IceWeather : Driver
                           # Counter-Basiswerte gesetzt hat - verhindert einen
                           # falschen Regen-Ausschlag direkt nach einem Neustart
   var quiet_mode        # true = Nachtruhe aktiv (Display+LED aus)
+
+  # Solartracker-Vibrations-Unterdrueckung (siehe RAIN_SUPPRESS_* oben)
+  var rain_suppress_until   # lokale Epoch bis zu der Regen-Kippen aktuell verworfen
+                             # werden; 0 = keine Unterdrueckung aktiv. Bewusst NUR
+                             # diese eine Deadline als Zustand (kein zusaetzliches
+                             # "aktiv"-Flag) - eine einzige Quelle der Wahrheit,
+                             # siehe persist-Lehre weiter unten in dieser Datei.
+  var rain_suppressed_mm    # Diagnose: seit Boot unterdrueckte Regenmenge (mm)
+  var rain_suppress_count   # Diagnose: seit Boot unterdrueckte Kippen-Ereignisse
 
   # Regen-/Druck-Ringpuffer ueberleben einen Neustart nur, wenn sie explizit
   # persistiert werden (RAM-Variablen sind sonst nach jedem Reboot leer) -
@@ -131,6 +159,16 @@ class IceWeather : Driver
     self.last_counter2 = 0
     self.counters_ready = false
     self.quiet_mode = nil   # unbekannt -> erzwingt sofortige Anwendung beim ersten (gueltigen) Check
+
+    self.rain_suppress_until = 0
+    self.rain_suppressed_mm = 0.0
+    self.rain_suppress_count = 0
+    # mqtt.subscribe() meldet die Subscription selbst beim Broker an (auch ohne
+    # aktuelle Verbindung - Tasmota haengt sie automatisch nach, auch bei
+    # Reconnects) - kein zusaetzliches "Subscribe"-Kommando noetig.
+    mqtt.subscribe("tele/solar/SENSOR", def (topic, idx, payload_s, payload_b) self.on_solar_sensor(payload_s) end)
+    mqtt.subscribe("tele/solar/LWT", def (topic, idx, payload_s, payload_b) self.on_solar_lwt(payload_s) end)
+
     tasmota.add_cron("*/10 * * * * *", / -> self.refresh_display(), "oled_refresh")
     tasmota.add_cron("0 0 * * * *", / -> self.check_quiet_hours(), "quiet_hours_check")
     # NICHT sofort in init() pruefen: die Systemzeit ist beim Booten noch nicht
@@ -229,6 +267,38 @@ class IceWeather : Driver
     return total
   end
 
+  # MQTT-Callback: tele/solar/SENSOR des PV-Trackers (SENSOR.Motion: 0=Stopp,
+  # 1=Hoch, 2=Runter, siehe solar_main.py). Bewegung aktiv -> Unterdrueckung bis
+  # Hard-Cap verlaengern; Bewegung gestoppt -> nur noch kurze Nachlaufzeit.
+  def on_solar_sensor(payload_s)
+    var msg = json.load(payload_s)
+    if msg == nil || msg.find("SENSOR") == nil
+      return
+    end
+    var motion = msg["SENSOR"].find("Motion")
+    if motion == nil
+      return
+    end
+    var now = tasmota.rtc()['local']
+    if now < 1000000000   # eigene Zeit noch nicht per NTP synchronisiert - Deadline waere unsinnig
+      return
+    end
+    if motion != 0
+      self.rain_suppress_until = now + RAIN_SUPPRESS_MAX_S
+    else
+      self.rain_suppress_until = now + RAIN_SUPPRESS_TAIL_S
+    end
+  end
+
+  # MQTT-Callback: tele/solar/LWT (Fail-Safe). Tracker offline -> Unterdrueckung
+  # sofort aufheben, sonst wuerde ein zuletzt empfangenes "Motion!=0" die
+  # Regenmessung dauerhaft blockieren, falls der Tracker haengen bleibt/ausfaellt.
+  def on_solar_lwt(payload_s)
+    if payload_s == "Offline"
+      self.rain_suppress_until = 0
+    end
+  end
+
   def every_second()
     var js = self.read_json()
     if js == nil
@@ -267,10 +337,20 @@ class IceWeather : Driver
         delta1 = 0  # Counter-Reset abgefangen
       end
       if delta1 > 0
-        var h = tasmota.time_dump(tasmota.rtc()['local'])['hour']
-        persist.rain_hourly[h] += delta1 * 0.2794
-        persist.dirty()
-        persist.save()
+        var now = tasmota.rtc()['local']
+        if self.rain_suppress_until > 0 && now < self.rain_suppress_until
+          # Solartracker bewegt sich (oder Nachlaufzeit laeuft noch) - Kippe(n)
+          # verwerfen statt zaehlen, aber last_counter1 unten trotzdem
+          # weiterschreiben, sonst wuerde der unterdrueckte Delta beim Ende der
+          # Unterdrueckung auf einen Schlag nachgezaehlt.
+          self.rain_suppressed_mm += delta1 * 0.2794
+          self.rain_suppress_count += 1
+        else
+          var h = tasmota.time_dump(now)['hour']
+          persist.rain_hourly[h] += delta1 * 0.2794
+          persist.dirty()
+          persist.save()
+        end
       end
       self.last_counter1 = c1
     end
@@ -356,9 +436,15 @@ class IceWeather : Driver
     if self.wind_dir_deg >= 0
       dir = int(self.wind_dir_deg + 0.5)
     end
+    var suppress_active = 0
+    if self.rain_suppress_until > 0 && tasmota.rtc()['local'] < self.rain_suppress_until
+      suppress_active = 1
+    end
     tasmota.response_append(
-      string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f}',
-        self.wind_ms, dir, self.rain_24h()))
+      string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f,' ..
+        '"RainSuppressActive":%d,"RainSuppressedMM":%.2f,"RainSuppressCount":%d}',
+        self.wind_ms, dir, self.rain_24h(),
+        suppress_active, self.rain_suppressed_mm, self.rain_suppress_count))
   end
 
   # Haengt eigene Zeilen an die Sensor-Tabelle der Tasmota-Startseite an
@@ -372,6 +458,11 @@ class IceWeather : Driver
     if self.wind_dir_deg >= 0
       tasmota.web_send_decimal(
         string.format("{s}Windrichtung{m}%d°{e}", int(self.wind_dir_deg + 0.5)))
+    end
+    if self.rain_suppress_count > 0
+      tasmota.web_send_decimal(
+        string.format("{s}Regen unterdrueckt (Solartracker){m}%.2f mm / %d x{e}",
+          self.rain_suppressed_mm, self.rain_suppress_count))
     end
   end
 end
