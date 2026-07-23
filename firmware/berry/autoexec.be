@@ -463,7 +463,7 @@ class IceWeather : Driver
     tasmota.cmd(string.format("DisplayText [x0y48f1]%s", line4))
   end
 
-  # Haengt eigene Werte (Wind, Regen 24h) in die periodische MQTT-Sensor-JSON
+  # Haengt eigene Werte (Wind, Regen 24h/Stunde) in die periodische MQTT-Sensor-JSON
   # (tele/.../SENSOR) ein - dadurch von Tasmotas MQTT-Discovery automatisch
   # als eigene Home-Assistant-Entitaeten erkannt, ohne HA-seitige Templates.
   def json_append()
@@ -476,9 +476,9 @@ class IceWeather : Driver
       suppress_active = 1
     end
     tasmota.response_append(
-      string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f,' ..
+      string.format(',"IceWeather":{"WindSpeed":%.2f,"WindDir":%d,"Rain24h":%.2f,"RainHour":%.2f,' ..
         '"RainSuppressActive":%d,"RainSuppressedMM":%.2f,"RainSuppressCount":%d}',
-        self.wind_ms, dir, self.rain_24h(),
+        self.wind_ms, dir, self.rain_24h(), self.rain_this_hour(),
         suppress_active, self.rain_suppressed_mm, self.rain_suppress_count))
   end
 

@@ -155,12 +155,13 @@ Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am
 
 **Erster Ansatz (überholt):** Eine einfache Tasmota-Rule (`ON Tele-DS18B20#Temperature DO DisplayText ... ENDON`) reicht für einzelne Werte, aber nicht für rollierende 24h-Fenster (Regenmenge, Luftdruck-Trend) — Rules haben keinen eigenen Zustand/Speicher über die Zeit. Das finale Dashboard läuft daher komplett über [firmware/berry/autoexec.be](../firmware/berry/autoexec.be) (Berry-Skript), **Rule1 ist deaktiviert** (`Rule1 0`).
 
-Das Skript aktualisiert alle 10 Sekunden per `tasmota.add_cron("*/10 * * * * *", ...)` drei Zeilen:
+Das Skript aktualisiert alle 10 Sekunden per `tasmota.add_cron("*/10 * * * * *", ...)` vier Zeilen (Zeile 4 + Feuchte in Zeile 3 kamen erst später dazu, siehe Abschnitt 13):
 
 ```
 Zeile 1: <RSSI>dBm <IP>              (oder "No-WiFi" falls WLAN nicht verbunden)
 Zeile 2: <Wind m/s>M <Richtung>° <Regen 24h>L
-Zeile 3: <Temperatur>C<Luftdruck ganzzahlig, ohne Einheit> <Trend U/D>
+Zeile 3: <Temperatur>C <Luftdruck ganzzahlig> <Trend U/D/-> <Feuchte>%
+Zeile 4: <Regen laufende Stunde>L <Schallpegel>dBA <Blitz-Distanz>KM
 ```
 
 ⚠️ **ESP32 kann keine eigene Versorgungsspannung messen** (anders als ESP8266 mit `ESP.getVcc()` — keine interne Referenz zum Vergleich vorhanden, siehe [ESP32-Forum-Diskussion](https://esp32.com/viewtopic.php?t=3221)). Zeile 1 zeigt deshalb WLAN-Signalstärke statt einer erfundenen Spannungsangabe. Falls später ein Spannungsteiler an einem freien ADC-Pin (GPIO33/36/39) verbaut wird, lässt sich echte Spannungsmessung nachrüsten.
@@ -311,5 +312,37 @@ Für Home Assistant empfiehlt sich ein weiterer `customize`-Eintrag analog Absch
 6. Während der Tests startete der reale Solartracker zufällig neu und führte eine echte Nachführbewegung aus (`stat/solar/DEBUG`: `"Motor: Hoch"` → `"Motor: Stopp (overshoot)"`) — dabei stieg `RainSuppressCount` real um 1 (echte Vibrationskippe korrekt unterdrückt), `Rain24h` blieb dabei unverändert. Bestätigt die Funktion nicht nur synthetisch, sondern mit echtem Tracker-Verkehr.
 
 ⚠️ Die Testkippen (Schritte 2 und 4) haben `Rain24h`/`persist.rain_hourly` um insgesamt ca. 0,28 mm real erhöht (Schritt 4, absichtlich außerhalb des Unterdrückungsfensters ausgelöst, um die Normalzählung zu prüfen) — vernachlässigbar und läuft mit dem rollierenden 24h-Fenster von selbst wieder heraus.
+
+## 13. OLED-Dashboard auf 4 Zeilen erweitert + weitere Werte in Home Assistant (2026-07-23)
+
+Nach Live-Betrieb kamen zwei Fixes und eine Erweiterung dazu:
+
+**BME280-Erkennung endgültig gefixt:** `USE_DISPLAY` aktiviert in `my_user_config.h` ungewollt auch `USE_DISPLAY_MATRIX`/`USE_DISPLAY_SEVENSEG` mit (die dort nur optisch, nicht tatsächlich per Präprozessor geguardet sind). Deren Boot-Zeit-I2C-Probe beansprucht Adresse `0x76` — identisch mit dem BME280 — und kommt ihm zuvor, sodass BME280 nie erkannt wurde (`SevenSeg found at 0x76` im Boot-Log). Fix in [`user_config_override.h`](../firmware/custom-build/user_config_override.h):
+```c
+#undef USE_DISPLAY_MATRIX
+#undef USE_DISPLAY_SEVENSEG
+```
+Zusätzlich hatte das BME280-Breakout selbst einen Wackelkontakt (eine der 4 Leitungen) — sichtbar daran, dass der rohe `I2CScan` (Hardware-ACK-Ebene) den Sensor auch im stabilen Dauerbetrieb konsequent vermisste, während AS3935+OLED am selben Bus einwandfrei liefen. Nach Kontakt-Reparatur erscheint `0x76` sofort im `I2CScan` — **Tasmotas BME280-Treiber initialisiert Sensoren aber nur einmal beim Boot**, ein reiner `I2CScan` reicht danach nicht aus. Immer zusätzlich `Restart 1` senden.
+
+**OLED-Layout erweitert** (Zeilenformat siehe Kopf-Kommentar in [autoexec.be](../firmware/berry/autoexec.be)):
+```
+Zeile 3: <Temperatur>C <Luftdruck> <Trend U/D/-> <Feuchte>%      (Feuchte neu)
+Zeile 4: <Regen laufende Stunde>L <Schallpegel>dBA <Blitz-Distanz>KM   (komplett neu)
+```
+`rain_this_hour()` liest einfach `persist.rain_hourly[<aktuelle Stunde>]` aus — genau der Wert, den `check_hour_rollover()` schon laufend befüllt und erst bei Stundenwechsel zurücksetzt (Abschnitt 11), kein zusätzlicher Zustand nötig.
+
+**Neue Werte auch in Home Assistant:** BME280-Feuchte, dBA-Schallpegel (`ANALOG.Range1`) und AS3935-Blitzdistanz waren als Standard-Tasmota-JSON-Felder bereits automatisch als eigene Entities in HA vorhanden (`sensor.tasmota_bme280_humidity`, `sensor.tasmota_analog_range1`, `sensor.tasmota_as3935_distance_2`) — nur ohne sinnvolle Einheit/Namen. Einzig `RainHour` existierte bisher nur im Berry-Skript-RAM fürs OLED; analog zu `Rain24h` (Abschnitt 10) in `json_append()` ergänzt, dadurch erscheint automatisch `sensor.tasmota_iceweather_rainhour`.
+
+`packages/iceweatherstation.yaml` (HA-seitig, nicht in diesem Repo) um die passenden Einheiten erweitert:
+```yaml
+    sensor.tasmota_iceweather_rainhour:
+      unit_of_measurement: "mm"
+    sensor.tasmota_analog_range1:
+      unit_of_measurement: "dBA"
+      friendly_name: "IceWeatherstation Schallpegel"
+```
+Dashboard-Karte (`dashboards/wetter.yaml`, Tab „Aktuell") um BME280-Temperatur/-Feuchte/-Druck, Regen/Stunde und Schallpegel ergänzt, dritte Gauge (Feuchte) neben den beiden Temperatur-Gauges hinzugefügt, veralteten "BME280 noch nicht verbaut"-Hinweis entfernt. Ergebnis:
+
+![Home Assistant Dashboard mit allen IceWeatherstation-Messwerten](images/ha-dashboard-iceweatherstation.png)
 
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.
