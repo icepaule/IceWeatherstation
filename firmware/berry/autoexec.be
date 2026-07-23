@@ -413,10 +413,22 @@ class IceWeather : Driver
     var line2 = string.format("%dM %s %dL",
       int(self.wind_ms + 0.5), dir_str, int(self.rain_24h() + 0.5))
 
-    # Zeile 3: Temperatur (1 Nachkommastelle) + Luftdruck (ganzzahlig) + Trend + Feuchte
-    var line3 = "BME280 fehlt"
-    if js != nil && js.find("BME280") != nil
-      var temp = js["BME280"].find("Temperature")
+    # Zeile 3: Temperatur (1 Nachkommastelle, DS18B20 - siehe unten) + Luftdruck
+    # (ganzzahlig) + Trend + Feuchte (beide BME280)
+    #
+    # Temperatur bewusst vom DS18B20 statt vom BME280: das BME280-Breakout sitzt
+    # direkt auf dem Prepboard an der (beklebten) Gehaeusewand, die in direkter
+    # Sonneneinstrahlung steht - Strahlungswaerme laesst es mehrere Grad zu warm
+    # anzeigen (live gefunden 2026-07-23, z.B. 31.9C BME280 vs. 25.1C DS18B20
+    # zur selben Sekunde). Der DS18B20-Messstift ragt unten aus dem Gehaeuse und
+    # ist nicht direkt besonnt, daher zuverlaessiger fuer die Lufttemperatur.
+    # Ein fixer Offset waere hier NICHT sinnvoll (kein konstanter Messfehler,
+    # sondern ein sonnenstand-/wetterabhaengiger Strahlungseffekt) - siehe
+    # docs/tasmota-config.md Abschnitt 14. Druck/Feuchte bleiben vom BME280,
+    # da nicht in gleichem Mass betroffen.
+    var line3 = "Sensor fehlt"
+    if js != nil && js.find("DS18B20") != nil && js.find("BME280") != nil
+      var temp = js["DS18B20"].find("Temperature")
       var pressure = js["BME280"].find("Pressure")
       var humidity = js["BME280"].find("Humidity")
       if temp != nil && pressure != nil

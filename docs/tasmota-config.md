@@ -345,4 +345,26 @@ Dashboard-Karte (`dashboards/wetter.yaml`, Tab „Aktuell") um BME280-Temperatur
 
 ![Home Assistant Dashboard mit allen IceWeatherstation-Messwerten](images/ha-dashboard-iceweatherstation.png)
 
+## 14. BME280 zeigt zu warm: Strahlungswärme statt Messfehler (2026-07-23)
+
+Live beobachtet: BME280 zeigte zeitweise **6-8°C mehr** als der DS18B20 (z.B. 31,9°C vs. 25,1°C zur selben Sekunde). Ursache ist keine Sensor-Ungenauigkeit, sondern die **Montage**: Das BME280-Breakout sitzt direkt auf dem Prepboard an der Gehäusewand (angeklebt), die in direkter Sonneneinstrahlung steht — die Wand heizt sich auf und strahlt Wärme auf den Sensor ab. Der DS18B20 dagegen ragt als Messstift unten aus dem Gehäuse und ist nicht direkt besonnt.
+
+⚠️ **Bewusst KEIN fixer Kalibrierungs-Offset**: Ein konstanter Korrekturwert (z.B. "BME280 minus 6,8°C") wäre nur für exakt die Sonnenbedingungen zum Messzeitpunkt richtig — nachts oder bei Bewölkung gibt es keine Strahlungswärme, ein fixer Offset würde den BME280 dann fälschlich zu kalt zeigen. Das ist ein Strahlungsschutz-Problem (fehlender Sonnenschutz/Radiation Shield), kein Kalibrierungsproblem — vergleichbar mit einem Thermometer, das man in die pralle Sonne statt in eine Wetterhütte hängt. Tasmota hat zwar einen globalen `TempOffset`-Befehl (`Settings->temp_comp`, siehe `support_command.ino`), der wirkt aber auf **alle** Temperatursensoren gleichzeitig und kann daher nicht BME280 und DS18B20 unterschiedlich korrigieren.
+
+**Fix:** DS18B20 ist jetzt die primäre/angezeigte Lufttemperatur, sowohl auf dem OLED (Zeile 3, siehe [autoexec.be](../firmware/berry/autoexec.be)) als auch im Home-Assistant-Dashboard (`sensor.tasmota_ds18b20_temperature` zuerst gelistet + als "Schuppen"-Gauge). BME280 bleibt für Luftdruck/Luftfeuchte aktiv (davon nicht in gleichem Maß betroffen) sowie als Diagnose-Wert sichtbar, aber klar mit "Sonneneinfluss - unzuverlässig" beschriftet.
+
+⚠️ **Nebeneffekt, im Auge zu behalten:** Die BME280-Luftfeuchte ist bei Überhitzung ebenfalls potenziell verfälscht (ein zu warmer Sensor zeigt relative Feuchte tendenziell zu niedrig) — noch nicht separat korrigiert, da schwerer zu quantifizieren als die Temperatur.
+
+**Langfristig sauberer Fix (nicht umgesetzt, Hardware-Änderung nötig):** BME280 physisch von der Gehäusewand weg an einen beschatteten Punkt versetzen, oder einen kleinen Strahlungsschutz (z.B. einfacher weißer Trichter/Lamellenschutz) darüber montieren.
+
+**Dashboard-Kompaktierung:** Die Entities-Karte "🏠 IceWeatherstation" hatte serienmäßig sehr große Zeilenabstände (HA bietet dafür keine native Dichte-Einstellung). Fix per `card_mod` in `dashboards/wetter.yaml`:
+```yaml
+card_mod:
+  style: |
+    #states > * {
+      margin-top: -8px !important;
+      margin-bottom: -8px !important;
+    }
+```
+
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.
