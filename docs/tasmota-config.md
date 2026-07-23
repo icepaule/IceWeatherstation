@@ -302,6 +302,7 @@ Für Home Assistant empfiehlt sich ein weiterer `customize`-Eintrag analog Absch
     sensor.tasmota_iceweather_rainsuppressedmm:
       unit_of_measurement: "mm"
 ```
+⚠️ Dieser Eintrag war hier nur als Empfehlung notiert, aber nie tatsächlich in `packages/iceweatherstation.yaml` ergänzt worden — erst am 2026-07-23 nachgeholt (Anlass: `RainSuppressedMM` fehlte komplett im Dashboard, siehe Abschnitt 14), zusammen mit einer eigenen Zeile in der Entities-Karte ("Regen unterdrückt (Solartracker)").
 
 **Verifiziert am echten Gerät (2026-07-20), per `mosquitto_pub` simulierte Tracker-Nachrichten + `Counter1 <wert>`-Testkippen:**
 1. `Motion:1` per MQTT gesendet → `RainSuppressActive` wechselt sofort auf `1`.
@@ -366,5 +367,7 @@ card_mod:
       margin-bottom: -8px !important;
     }
 ```
+
+**Nachtrag (gleicher Tag):** Beim Durchgehen des Dashboards fiel auf, dass `RainSuppressedMM` (Regen-Vibrationsunterdrückung durch den Solartracker, Abschnitt 12) trotz existierender Entity nirgends sichtbar war — die dortige `customize`-Empfehlung war nie tatsächlich umgesetzt worden. Jetzt nachgeholt: Einheit `mm` ergänzt und als eigene Zeile "Regen unterdrückt (Solartracker)" in die Entities-Karte aufgenommen, direkt unter `RainHour`. `RainSuppressActive`/`RainSuppressCount` bewusst nicht mit aufgenommen (zu granular für die Hauptkarte, meist `0`).
 
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.
