@@ -20,21 +20,22 @@ Aufgaben dieses Skripts:
  3. Windgeschwindigkeit in m/s aus Counter2-Deltas (1 Klick/s = 2.4 km/h = 0.667 m/s)
  4. Luftdruck-Trend der letzten 24h (Vergleich mit BME280-Druck von vor 24h,
     ebenfalls per Stunden-Ringpuffer)
- 5. OLED-Dashboard (3 Zeilen, alle 10s aktualisiert) + eigene Zeilen im
+ 5. OLED-Dashboard (4 Zeilen, alle 10s aktualisiert) + eigene Zeilen im
     Tasmota-Web-UI (Startseite)
  6. Nachtruhe: OLED (DisplayDimmer) und Status-LED (LedState) 22:00-08:00 aus,
     damit nachts niemand vom Leuchten gestoert wird - stuendlich neu geprueft
     (selbstkorrigierend nach einem Neustart mitten in der Nachtruhe)
 
-Zeilenformat OLED (auf Nutzerwunsch):
+Zeilenformat OLED (auf Nutzerwunsch, erweitert 2026-07-23):
  Zeile 1: "<RSSI>dBm <IP>" bzw. "No-WiFi" falls WLAN nicht verbunden
           (ESP32 kann seine Versorgungsspannung NICHT ohne Zusatz-Hardware
           messen - anders als ESP8266 mit ESP.getVcc() - deshalb WLAN-
           Signalstaerke statt "Volt" als Kopfzeilen-Info)
  Zeile 2: "<Windgeschw. m/s>M <Windrichtung Grad>° <Regenmenge 24h>L"
- Zeile 3: "<Temperatur>C<Luftdruck ganzzahlig> <Trend-Pfeil/U/D>"
+ Zeile 3: "<Temperatur>C <Luftdruck ganzzahlig> <Trend-Pfeil/U/D> <Feuchte>%"
           ("°" durch "C" ersetzt - Display-Font kann das Grad-Zeichen laut
           Live-Test am echten Geraet 2026-07-18 nicht darstellen)
+ Zeile 4: "<Regen laufende Stunde>L <Schallpegel>dBA <Blitz-Distanz>KM"
 -#
 
 import string
@@ -372,10 +373,24 @@ class IceWeather : Driver
     end
   end
 
+  # Regen der laufenden (noch nicht vollen) Stunde - persist.rain_hourly[h]
+  # wird in every_second() fortlaufend befuellt und erst bei Stundenwechsel
+  # (check_hour_rollover) auf 0 zurueckgesetzt, ist also genau das.
+  def rain_this_hour()
+    var epoch = tasmota.rtc()['local']
+    if epoch < 1000000000   # NTP noch nicht synchronisiert
+      return 0.0
+    end
+    var h = tasmota.time_dump(epoch)['hour']
+    return persist.rain_hourly[h]
+  end
+
   def refresh_display()
     if self.quiet_mode
       return   # Nachtruhe: Display ist gedimmt/aus, kein unnoetiger I2C-Traffic
     end
+
+    var js = self.read_json()
 
     # Zeile 1: WLAN-Signalstaerke + IP (ESP32 kann keine eigene Versorgungs-
     # spannung ohne Zusatz-Hardware messen, deshalb RSSI statt "Volt")
@@ -398,12 +413,12 @@ class IceWeather : Driver
     var line2 = string.format("%dM %s %dL",
       int(self.wind_ms + 0.5), dir_str, int(self.rain_24h() + 0.5))
 
-    # Zeile 3: Temperatur (1 Nachkommastelle) + Luftdruck (ganzzahlig) + Trend
+    # Zeile 3: Temperatur (1 Nachkommastelle) + Luftdruck (ganzzahlig) + Trend + Feuchte
     var line3 = "BME280 fehlt"
-    var js = self.read_json()
     if js != nil && js.find("BME280") != nil
       var temp = js["BME280"].find("Temperature")
       var pressure = js["BME280"].find("Pressure")
+      var humidity = js["BME280"].find("Humidity")
       if temp != nil && pressure != nil
         var trend_str = "-"
         if SHOW_TREND_ARROWS
@@ -419,13 +434,33 @@ class IceWeather : Driver
             trend_str = "D"
           end
         end
-        line3 = string.format("%.1fC%d %s", temp, int(pressure + 0.5), trend_str)
+        var hum_str = "-"
+        if humidity != nil
+          hum_str = string.format("%d%%", int(humidity + 0.5))
+        end
+        line3 = string.format("%.1fC %d %s %s", temp, int(pressure + 0.5), trend_str, hum_str)
       end
     end
+
+    # Zeile 4: Regen der laufenden Stunde (L) + Schallpegel (dBA) + Blitz-Distanz (KM)
+    var rain_hour_str = string.format("%.1fL", self.rain_this_hour())
+    var dba_str = "-dBA"
+    if js != nil && js.find("ANALOG") != nil && js["ANALOG"].find("Range1") != nil
+      dba_str = string.format("%ddBA", js["ANALOG"]["Range1"])
+    end
+    var lightning_str = "-KM"
+    if js != nil && js.find("AS3935") != nil
+      var dist = js["AS3935"].find("Distance")
+      if dist != nil
+        lightning_str = string.format("%dKM", dist)
+      end
+    end
+    var line4 = string.format("%s %s %s", rain_hour_str, dba_str, lightning_str)
 
     tasmota.cmd(string.format("DisplayText [x0y0f1]%s", line1))
     tasmota.cmd(string.format("DisplayText [x0y16f1]%s", line2))
     tasmota.cmd(string.format("DisplayText [x0y32f1]%s", line3))
+    tasmota.cmd(string.format("DisplayText [x0y48f1]%s", line4))
   end
 
   # Haengt eigene Werte (Wind, Regen 24h) in die periodische MQTT-Sensor-JSON
