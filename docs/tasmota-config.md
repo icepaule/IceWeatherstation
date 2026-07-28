@@ -370,4 +370,22 @@ card_mod:
 
 **Nachtrag (gleicher Tag):** Beim Durchgehen des Dashboards fiel auf, dass `RainSuppressedMM` (Regen-Vibrationsunterdrückung durch den Solartracker, Abschnitt 12) trotz existierender Entity nirgends sichtbar war — die dortige `customize`-Empfehlung war nie tatsächlich umgesetzt worden. Jetzt nachgeholt: Einheit `mm` ergänzt und als eigene Zeile "Regen unterdrückt (Solartracker)" in die Entities-Karte aufgenommen, direkt unter `RainHour`. `RainSuppressActive`/`RainSuppressCount` bewusst nicht mit aufgenommen (zu granular für die Hauptkarte, meist `0`).
 
+## 15. Luftdruck-Grafiken hatten Datenlücken: BME280-Read-Freeze + Watchdog (2026-07-28)
+
+Die "Luftdruck - Tag"/"Luftdruck - Monat"-Grafiken im Dashboard hatten größere Lücken (bis zu ~19h). Root Cause per direkter SQLite-Auswertung der HA-Recorder-DB gefunden: `sensor.tasmota_bme280_pressure` blieb über Stunden auf exakt demselben Wert stehen (`last_updated` fror ein), während `sensor.tasmota_ds18b20_temperature` und die `IceWeather`-Werte im selben Gerät ganz normal weiterliefen.
+
+Live-Diagnose bestätigte: `I2CScan` fand das BME280 weiterhin korrekt auf dem Bus (`0x76` ACKt), aber `tele/SENSOR` lieferte über mehrere aufeinanderfolgende Zyklen bit-identische Pressure/Temperature/Humidity-Werte — der Sensor ist am Bus erreichbar, aber Tasmotas BME280-Treiber liefert bei einem fehlgeschlagenen Read offenbar stillschweigend den letzten Cache-Wert statt eines Fehlers. Das ist eine andere Fehlerart als der frühere komplette Wackelkontakt-Ausfall (Abschnitt "BME280 wackelkontakt", `I2CScan` fand dort gar nichts) — hier bleibt der Bus-Kontakt bestehen, nur die Read-Loop hängt.
+
+**Sofort-Fix:** `Restart 1` per MQTT (`cmnd/iceweatherstation/Restart`) initialisiert den Sensor-Read neu — Pressure sprang danach sofort von den eingefrorenen 953,6 hPa auf den tatsächlichen aktuellen Wert.
+
+**Dauerhafter Fix — Watchdog:** Da das jetzt zum zweiten Mal auftrat (22./23.07. ~19h, 27./28.07. ~5,5h) und beide Male unbemerkt blieb bis zur manuellen Prüfung, gibt es jetzt einen automatischen Watchdog nach demselben Muster wie der bestehende Ubertooth-MQTT-Watchdog:
+
+- `/opt/iceweatherstation-watchdog/watchdog.sh` (auf NUC-HA) vergleicht bei jedem Lauf die BME280-Signatur (Pressure+Temperature+Humidity) aus `tele/iceweatherstation/SENSOR` gegen eine Marker-Datei (`/run/iceweatherstation-watchdog.state`).
+- Bleibt die Signatur ≥30 Minuten unverändert, sendet der Watchdog `cmnd/iceweatherstation/Restart 1` und setzt den Marker zurück.
+- systemd-Timer `iceweatherstation-watchdog.timer` (10-Minuten-Takt, `OnBootSec=10min`/`OnUnitActiveSec=10min`) triggert `iceweatherstation-watchdog.service` (`Type=oneshot`).
+- 30 Minuten identischer Werte für Druck **und** Temperatur **und** Feuchte gleichzeitig ist physikalisch praktisch ausgeschlossen — echte Wetterwerte schwanken auf Dezimalstellen-Ebene ständig, daher keine Fehlalarm-Gefahr bei normalem Betrieb.
+- Diese Watchdog-Dateien liegen (wie beim Ubertooth-Watchdog) direkt auf NUC-HA unter `/opt/` und `/etc/systemd/system/`, nicht in diesem Repo.
+
+Historische Lücken in den bestehenden Grafiken lassen sich nicht rückwirkend füllen (die Werte wurden nie echt gemessen), ab jetzt sollte es aber keine mehrstündigen Lücken mehr geben.
+
 Weiter mit dem [Setup-Guide](setup-guide.md) für die komplette Schritt-für-Schritt-Anleitung inklusive Home-Assistant-Einbindung.
