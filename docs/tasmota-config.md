@@ -91,7 +91,16 @@ Keine native Tasmota-Umrechnung vorhanden. Zwei Optionen:
 1. **Klassische Rules** mit ADC-Schwellwert-Vergleichen (`ON Analog#A1>x DO ... ENDON`) — einfacher, aber unübersichtlich bei 8 Richtungen mit Übergangsbereichen
 2. **Berry-Skript mit Lookup-Tabelle** (empfohlen) — übersichtlicher, einfacher zu kalibrieren. Siehe [firmware/berry/autoexec.be](../firmware/berry/autoexec.be)
 
-Die Datenblatt-Spannungswerte der SparkFun-Windfahne sind laut mehreren Quellen in der Praxis ungenau — **nach dem Aufbau mit einer Wasserwaage/Kompass real durchmessen und die Lookup-Tabelle anpassen.**
+**Update 09.08.2026:** Die `VANE_TABLE` in `autoexec.be` ist kein Platzhalter mehr, sondern korrekt aus dem
+offiziellen Fine-Offset-Datenblatt (`DS-15901-Weather_Meter.pdf`, Hersteller der SEN-15901-Sensorik,
+Tabelle "Direction/Resistance") berechnet — über dieselbe Spannungsteiler-Formel wie unser eigener Aufbau
+(`raw = 4095 * Rvane / (10000 + Rvane)`, fester 10-kΩ-Widerstand zwischen 3,3V und GPIO34, identische
+Topologie wie im Datenblatt-Beispielschaltbild). Live am (baugleichen) Sensor der Stephan-Variante
+verifiziert — Details und Ausrichtungsprozedur: [stephan/docs/tasmota-config.md](../stephan/docs/tasmota-config.md)
+Abschnitt 5. Kalibrierung reduziert sich damit auf einen rein mechanischen Schritt: Sensor beim Mastaufbau
+mit seiner eigenen "N"-Markierung nach echt Norden ausrichten, dann per Kompass-Gegenprobe verifizieren
+(nur zuverlässig bei fest montierter, frei einrastender Fahne — von Hand gehalten liefert der Rohwert keine
+eindeutigen Ergebnisse, siehe verlinkter Abschnitt).
 
 ⚠️ **Fallstrick, live gefunden (2026-07-18):** Der Rohwert (`A1` im Status-10-JSON, `GPIO_ADC_INPUT`-Typ) verschwindet komplett aus der JSON-Ausgabe, sobald `AdcParam<Kanal>` den **4. Parameter ungleich 0** stehen hat (das ist Tasmotas interner Umschalter für einen "Direct Mode", der eigentlich für Dimmer/Licht-Steuerung gedacht ist, nicht für uns relevant). Falls `A1` nicht in `Status 10` auftaucht, obwohl GPIO korrekt auf „ADC Input" steht: `AdcParam<Kanal>` (Kanalnummer nach GPIO-Reihenfolge zählen, siehe Abschnitt 3) mit 4. Wert explizit auf 0 zurücksetzen, z.B. `AdcParam1 6,0,0,0,0`.
 

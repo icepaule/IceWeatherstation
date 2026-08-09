@@ -45,26 +45,34 @@ import mqtt
 
 # Windfahnen-Kalibrierungstabelle: roher ADC-Wert (0-4095, GPIO34/Analog A1)
 # -> Windrichtung in Grad (0=Nord, im Uhrzeigersinn).
-# TODO nach Aufbau kalibrieren: rohe ADC-Werte real durchmessen (Kompass!),
-# SparkFun-Datenblattwerte sind laut mehreren Quellen in der Praxis ungenau.
-# Werte hier sind Platzhalter zur Orientierung, KEINE verifizierten Messwerte.
+# Berechnet aus dem offiziellen Fine-Offset-Datenblatt (DS-15901-Weather_Meter.pdf,
+# Hersteller der SEN-15901-Sensorik), Tabelle "Direction/Resistance" - NICHT mehr
+# geraten/platzhalter wie zuvor. Umrechnung: raw = 4095 * Rvane / (10000 + Rvane),
+# fuer unseren Spannungsteiler (fester 10 kOhm zwischen 3V3 und Messknoten, Vane
+# zwischen Messknoten und GND, ESP32-ADC 12-Bit/3,3V) - identische Topologie wie
+# im Datenblatt-Beispielschaltbild (dort mit 10k-Beispielwiderstand vorgerechnet).
+# Uebernommen 09.08.2026 von der Stephan-Variante (stephan/firmware/autoexec.be),
+# dort live am Geraet verifiziert - identischer Spannungsteiler-Aufbau hier.
+# Setzt voraus, dass der Sensor beim Aufbau mit seiner eigenen "N"-Markierung nach
+# echt Norden ausgerichtet wird (rein mechanischer Abgleich, keine Software-
+# Kalibrierung mehr noetig) - Silkscreen des Sensors selbst ist die Referenz.
 var VANE_TABLE = [
-  [3890, 0],
-  [3420, 22.5],
-  [3620, 45],
-  [2200, 67.5],
-  [2400, 90],
-  [1600, 112.5],
-  [1800, 135],
-  [1100, 157.5],
-  [1300, 180],
-  [2900, 202.5],
-  [2600, 225],
-  [3000, 247.5],
-  [3300, 270],
-  [3700, 292.5],
-  [3500, 315],
-  [3800, 337.5]
+  [3143, 0],
+  [1624, 22.5],
+  [1845, 45],
+  [335, 67.5],
+  [372, 90],
+  [264, 112.5],
+  [738, 135],
+  [506, 157.5],
+  [1149, 180],
+  [979, 202.5],
+  [2520, 225],
+  [2397, 247.5],
+  [3780, 270],
+  [3309, 292.5],
+  [3548, 315],
+  [2810, 337.5]
 ]
 
 # Ob das aktuelle Display-Font die Sonderzeichen darstellen kann - nach dem
