@@ -170,22 +170,37 @@ Richtung gedreht abfragen und mit der Tabelle vergleichen.
 danach ist das Gerät nicht mehr über das Test-WLAN erreichbar.
 
 Um wieder in den Ersteinrichtungs-Zustand (eigener Access Point + WLAN-Auswahl) zu wechseln, ohne
-GPIOs/Skript/Kalibrierung zu verlieren, in der Konsole (oder per `cm?cmnd=`):
+GPIOs/Skript/Kalibrierung zu verlieren, zwei gleichwertige Wege:
+
+**Über die Konsole** (`cm?cmnd=` oder Konsolen-Eingabe):
 
 ```
 WifiConfig 2
 ```
 
-Startet sofort den WiFi-Manager: Gerät öffnet für 3 Minuten seinen eigenen Access Point (Name z.B.
-`tasmota-XXXXXX`) mit Setup-Portal inkl. WLAN-Netzwerkauswahl — genau der Zustand nach dem Erstflashen.
-Passiert in den 3 Minuten nichts, verbindet sich das Gerät danach automatisch wieder mit dem zuletzt
-bekannten Netz (in dem Fall `WifiConfig 2` einfach erneut ausführen). Ein bloßes Löschen der SSID
-(`SSID1 0`) reicht laut Tasmota-Dokumentation nicht zuverlässig, um den AP-Modus auszulösen —
-`WifiConfig 2` ist der zuverlässige Weg.
+**Über die Weboberfläche** (funktioniert auch, falls die Konsole gerade z.B. durch eine Netzwerk-IPS
+blockiert ist — live gefunden 09.08.2026, siehe unten): Configuration → Configure WiFi → SSID und Passwort
+leeren → Save. Ohne gültige Zugangsdaten öffnet das Gerät beim nächsten Boot automatisch seinen eigenen
+Access Point.
 
-**Für Stephan** (siehe [Bauanleitung](bauanleitung.pdf) Abschnitt 6): Nach `WifiConfig 2` verbindet er sich
-mit dem geöffneten Access Point und trägt dort sein eigenes WLAN ein — danach ist das Gerät dauerhaft in
-seinem Netz.
+Beide Wege starten den WiFi-Manager: Gerät öffnet seinen eigenen Access Point **`Wetterstation-Stephan`**
+mit Setup-Portal inkl. WLAN-Netzwerkauswahl — genau der Zustand nach dem Erstflashen. Bei der
+Konsolen-Variante läuft das AP-Fenster 3 Minuten; passiert darin nichts, verbindet sich das Gerät
+automatisch wieder mit dem zuletzt bekannten Netz (dann einfach erneut auslösen). Ein bloßes Löschen der
+SSID per Konsolenbefehl (`SSID1 0`) reicht laut Tasmota-Dokumentation dagegen nicht zuverlässig, um den
+AP-Modus auszulösen.
+
+**Live gefunden (09.08.2026):** Nach längerem intensivem Testen des Geräts (viele Konsolen-Anfragen mit
+`cmnd=`/Berry-Code-artigen Query-Strings) waren `/cm`, `/bc` und `/cn` plötzlich nicht mehr erreichbar
+(leere TCP-Antwort), während die normale Sensor-Hauptseite weiter einwandfrei lief — auch nach einem
+Neustart des Geräts nicht behoben. Ursache vermutlich eine Netzwerk-IPS (pfSense/Suricata), die die
+anfragende Quelladresse wegen der vielen kommandoartigen Requests geblockt hat (bereits von einem früheren,
+ähnlichen Fall bei der Originalstation bekannt). Der Web-UI-Weg über "Configure WiFi" ist davon nicht
+betroffen und funktioniert als zuverlässige Rückfalloption.
+
+**Für Stephan** (siehe [Bauanleitung](bauanleitung.pdf) Abschnitt 6): Nach dem Reset verbindet er sich mit
+dem geöffneten Access Point `Wetterstation-Stephan` und trägt dort sein eigenes WLAN ein — danach ist das
+Gerät dauerhaft in seinem Netz.
 
 ## 7. Kein MQTT
 
