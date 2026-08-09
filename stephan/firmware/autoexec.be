@@ -26,26 +26,32 @@ import math
 
 # Windfahnen-Kalibrierungstabelle: roher ADC-Wert (0-4095, GPIO34/Analog A1)
 # -> Windrichtung in Grad (0=Nord, im Uhrzeigersinn).
-# TODO nach Aufbau kalibrieren: rohe ADC-Werte real durchmessen (Kompass!).
-# Werte hier sind Platzhalter zur Orientierung, KEINE verifizierten Messwerte -
-# identisch zur Tabelle des Originalgeraets (gleicher Sensortyp SEN-15901).
+# Berechnet aus dem offiziellen Fine-Offset-Datenblatt (DS-15901-Weather_Meter.pdf,
+# Hersteller der SEN-15901-Sensorik), Tabelle "Direction/Resistance" - NICHT mehr
+# geraten/platzhalter wie zuvor. Umrechnung: raw = 4095 * Rvane / (10000 + Rvane),
+# fuer unseren Spannungsteiler (fester 10 kOhm zwischen 3V3 und Messknoten, Vane
+# zwischen Messknoten und GND, ESP32-ADC 12-Bit/3,3V) - identische Topologie wie
+# im Datenblatt-Beispielschaltbild (dort mit 10k-Beispielwiderstand vorgerechnet).
+# Setzt voraus, dass der Sensor beim Aufbau mit seiner eigenen "N"-Markierung nach
+# echt Norden ausgerichtet wird (rein mechanischer Abgleich, keine Software-
+# Kalibrierung mehr noetig) - Silkscreen des Sensors selbst ist die Referenz.
 var VANE_TABLE = [
-  [3890, 0],
-  [3420, 22.5],
-  [3620, 45],
-  [2200, 67.5],
-  [2400, 90],
-  [1600, 112.5],
-  [1800, 135],
-  [1100, 157.5],
-  [1300, 180],
-  [2900, 202.5],
-  [2600, 225],
-  [3000, 247.5],
-  [3300, 270],
-  [3700, 292.5],
-  [3500, 315],
-  [3800, 337.5]
+  [3143, 0],
+  [1624, 22.5],
+  [1845, 45],
+  [335, 67.5],
+  [372, 90],
+  [264, 112.5],
+  [738, 135],
+  [506, 157.5],
+  [1149, 180],
+  [979, 202.5],
+  [2520, 225],
+  [2397, 247.5],
+  [3780, 270],
+  [3309, 292.5],
+  [3548, 315],
+  [2810, 337.5]
 ]
 
 # Ob das Display-Font Sonderzeichen darstellen kann - nach dem ersten Flashen
@@ -111,6 +117,14 @@ var MQ_CAL_SECONDS = 180     # Kalibrierfenster nach Boot, wie im Luft-Skript
 # vorherigen Blitzes ueberholt und die LED dauerhaft an bleibt.
 var LED_PULSE_MIN_GAP_S = 2
 
+# Fenstergroesse (Sekunden) fuer den gleitenden Windgeschwindigkeits-Mittelwert.
+# Live gefunden (08.08.2026): die reine 1-Sekunden-Momentanmessung (Impulse
+# in genau der letzten Sekunde) zeigt bei langsamer Drehung (<1 Impuls/s)
+# die meiste Zeit 0.00 m/s, obwohl sich der Anemometer nachweislich dreht -
+# nur im exakten Moment eines Impulses kurz einen Wert. Ein gleitender
+# Mittelwert ueber mehrere Sekunden glaettet das.
+var WIND_AVG_WINDOW_S = 10
+
 def zero_list(n)
   var l = []
   var i = 0
@@ -123,6 +137,7 @@ end
 
 class IceWeather : Driver
   var wind_ms, wind_dir_deg
+  var wind_pulse_ring, wind_ring_idx  # gleitender Mittelwert, siehe WIND_AVG_WINDOW_S
   var last_counter1, last_counter2
   var counters_ready
   var quiet_mode
@@ -157,6 +172,8 @@ class IceWeather : Driver
     persist.save()
 
     self.wind_ms = 0.0
+    self.wind_pulse_ring = zero_list(WIND_AVG_WINDOW_S)
+    self.wind_ring_idx = 0
     self.wind_dir_deg = -1
     self.last_counter1 = 0
     self.last_counter2 = 0
@@ -295,14 +312,23 @@ class IceWeather : Driver
       self.last_counter1 = c1
     end
 
-    # Wind: Delta von Counter2 in diesem Tick, 1 Klick/s = 2.4 km/h = 0.6667 m/s
+    # Wind: gleitender Mittelwert der Counter2-Impulse ueber WIND_AVG_WINDOW_S
+    # Sekunden, 1 Klick/s = 2.4 km/h = 0.6667 m/s. Reine 1-Sekunden-Momentan-
+    # messung war bei langsamer Drehung zu ruckelig (siehe Konstante oben) -
+    # deshalb Ringpuffer statt direktem Delta.
     if js.find("COUNTER") != nil && js["COUNTER"].find("C2") != nil
       var c2 = js["COUNTER"]["C2"]
       var delta2 = c2 - self.last_counter2
       if delta2 < 0
         delta2 = 0
       end
-      self.wind_ms = delta2 * 0.6667
+      self.wind_pulse_ring[self.wind_ring_idx] = delta2
+      self.wind_ring_idx = (self.wind_ring_idx + 1) % WIND_AVG_WINDOW_S
+      var total = 0
+      for v : self.wind_pulse_ring
+        total += v
+      end
+      self.wind_ms = (total / WIND_AVG_WINDOW_S) * 0.6667
       self.last_counter2 = c2
     end
 

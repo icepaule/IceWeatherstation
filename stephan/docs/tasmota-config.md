@@ -7,7 +7,7 @@ Firmware: dieselbe Sonder-Firmware wie das Originalgerät (Tasmota 15.5.0, AS393
 ## 1. GPIO-Konfiguration
 
 ```
-Backlog GPIO21 640;GPIO22 608;GPIO4 1312;GPIO27 352;GPIO14 353;GPIO34 4704;GPIO35 4864;GPIO32 6210;GPIO2 288
+Backlog GPIO21 640;GPIO22 608;GPIO4 1312;GPIO14 352;GPIO27 353;GPIO34 4704;GPIO35 4864;GPIO32 6210;GPIO2 288
 ```
 
 | GPIO | Rolle | Bauteil |
@@ -15,12 +15,17 @@ Backlog GPIO21 640;GPIO22 608;GPIO4 1312;GPIO27 352;GPIO14 353;GPIO34 4704;GPIO3
 | 21 | I2C SDA1 | BME280 + OLED |
 | 22 | I2C SCL1 | BME280 + OLED |
 | 4 | DS18x201 | DS18B20 |
-| 27 | Counter1 | Regenmesser |
-| 14 | Counter2 | Anemometer |
+| 14 | Counter1 | Regenmesser |
+| 27 | Counter2 | Anemometer |
 | 34 | ADC Input1 | Windfahne |
 | 35 | ADC Range1 | MQ135 (siehe Abschnitt 3 — bewusst nicht "ADC MQ") |
 | 32 | Option A3 | virtueller Marker fürs OLED, kein physischer Pin |
 | 2 | Led1 | Status-LED (bewusst "Led", nicht "LedLink" — siehe Abschnitt 4) |
+
+**Hinweis:** IO14/IO27 sind hier bewusst gegenüber dem Originalgerät vertauscht (dort: 27=Regenmesser,
+14=Anemometer) — passend zur tatsächlichen Verkabelung bei Stephans Aufbau. Counter1/Counter2 sind rein
+softwareseitig vergebene, funktional identische Rollen; welcher physische Pin welchen Namen bekommt, ist
+frei wählbar. Details zum Fund: [wiring.md](wiring.md).
 
 Windfahne zusätzlich auf reine 1:1-Durchreichung gestellt (kein AdcParam-Range-Effekt gewünscht):
 
@@ -128,32 +133,78 @@ Elektronik je nach Position/Gehäuse unterscheidet.
 
 ## 5. Windfahnen-Kalibrierung
 
-Die Zuordnung Rohwert→Position ist eine reine Eigenschaft des SEN-15901-Widerstandsnetzwerks, unabhängig
-von der späteren Ausrichtung — lässt sich also schon vor der Montage messen: Fahne langsam eine volle
-Umdrehung durch alle 16 Rastpositionen drehen, dabei `Status 10` → `ANALOG.A1` wiederholt abfragen und die
-Werte in Reihenfolge notieren. Erst **nach** der Mastmontage wird ein Kompass gebraucht: einmal auf Norden
-ausrichten, den dann angezeigten Wert notieren, und in der Platzhalter-Tabelle `VANE_TABLE` im
-Dashboard-Skript den passenden Rotations-Offset eintragen — keine komplette Neukalibrierung nötig, nur
-dieser eine Abgleich.
+`VANE_TABLE` im Dashboard-Skript ist **kein Platzhalter mehr**, sondern aus dem offiziellen
+Fine-Offset-Datenblatt (`DS-15901-Weather_Meter.pdf`, Hersteller der SEN-15901-Sensorik) berechnet:
+Datenblatt-Tabelle "Direction/Resistance" (16 Werte, 891 Ω–120 kΩ) durch die Spannungsteiler-Formel
+`raw = 4095 * Rvane / (10000 + Rvane)` in erwartete rohe ADC-Werte umgerechnet — passend zu unserem
+eigenen 10-kΩ-Spannungsteiler an 3,3V, identische Topologie wie im Datenblatt-Beispielschaltbild.
+
+Dadurch reduziert sich die Kalibrierung auf einen rein **mechanischen** Schritt: beim Mastmontage die
+"N"-Markierung auf dem Windfahnen-Sensor selbst nach echt Norden ausrichten. Kein Software-Abgleich, kein
+Kompass-Offset im Skript mehr nötig — die Tabelle stimmt bereits mit echten Kompassrichtungen überein,
+sofern die Fahne korrekt ausgerichtet montiert wird.
+
+![Windfahnen-Ausrichtung nach Kompass](images/vane-alignment.png)
+
+### Ausrichtungsprozedur bei der Montage
+
+1. Windfahne auf ihre Achse/Lager montieren (noch nicht endgültig fixieren)
+2. Kompass (echtes Gerät oder Handy-App) direkt daneben halten, echt Norden bestimmen
+3. Sensorgehäuse so drehen, dass seine **"N"-Markierung** exakt nach Norden zeigt
+4. Erst jetzt endgültig festschrauben/fixieren
+
+**Wichtig — live gefunden (09.08.2026):** Eine Kompass-Gegenprobe funktioniert nur zuverlässig, wenn die
+Fahne **fest auf ihrer Achse montiert** ist und frei in ihre 16 Rastpositionen einrasten kann. Von Hand
+gehalten (z.B. zum schnellen Test auf dem Tisch) liefert der Rohwert keine eindeutigen Ergebnisse — die
+Fahne trifft dabei praktisch nie exakt eine der festen Magnet-Positionen, sondern oft eine uneindeutige
+Zwischenstellung (laut Datenblatt das Resultat zweier gleichzeitig aktiver Schalter). Getestet mit zwei
+Handhaltungen (Norden, Süden): beide ergaben Rohwerte, die keiner sauberen 180°-Beziehung in der Tabelle
+entsprachen — kein Defekt, sondern erwartetes Verhalten einer nicht fest montierten Fahne.
+
+Optionale Gegenprobe **nach fester Montage**: `Status 10` → `ANALOG.A1` mit der Fahne in eine bekannte
+Richtung gedreht abfragen und mit der Tabelle vergleichen.
 
 ## 6. WLAN-Setup vor Übergabe erneut aktivieren
 
-Um vor der Übergabe an Stephan wieder in den Ersteinrichtungs-Zustand (eigener Access Point + WLAN-Auswahl)
-zu wechseln, ohne GPIOs/Skript/Kalibrierung zu verlieren:
+**Das ist der letzte Software-Schritt, bevor das Gehäuse verschlossen und an Stephan übergeben wird** —
+danach ist das Gerät nicht mehr über das Test-WLAN erreichbar.
+
+Um wieder in den Ersteinrichtungs-Zustand (eigener Access Point + WLAN-Auswahl) zu wechseln, ohne
+GPIOs/Skript/Kalibrierung zu verlieren, in der Konsole (oder per `cm?cmnd=`):
 
 ```
 WifiConfig 2
 ```
 
-Startet sofort den WiFi-Manager: Gerät öffnet für 3 Minuten seinen eigenen Access Point mit
-Setup-Portal inkl. WLAN-Netzwerkauswahl. Passiert in den 3 Minuten nichts, verbindet sich das Gerät danach
-automatisch wieder mit dem zuletzt bekannten Netz. Ein bloßes Löschen der SSID (`SSID1 0`) reicht laut
-Tasmota-Dokumentation nicht zuverlässig, um den AP-Modus auszulösen — `WifiConfig 2` ist der zuverlässige
-Weg.
+Startet sofort den WiFi-Manager: Gerät öffnet für 3 Minuten seinen eigenen Access Point (Name z.B.
+`tasmota-XXXXXX`) mit Setup-Portal inkl. WLAN-Netzwerkauswahl — genau der Zustand nach dem Erstflashen.
+Passiert in den 3 Minuten nichts, verbindet sich das Gerät danach automatisch wieder mit dem zuletzt
+bekannten Netz (in dem Fall `WifiConfig 2` einfach erneut ausführen). Ein bloßes Löschen der SSID
+(`SSID1 0`) reicht laut Tasmota-Dokumentation nicht zuverlässig, um den AP-Modus auszulösen —
+`WifiConfig 2` ist der zuverlässige Weg.
+
+**Für Stephan** (siehe [Bauanleitung](bauanleitung.pdf) Abschnitt 6): Nach `WifiConfig 2` verbindet er sich
+mit dem geöffneten Access Point und trägt dort sein eigenes WLAN ein — danach ist das Gerät dauerhaft in
+seinem Netz.
 
 ## 7. Kein MQTT
 
 Bewusst nicht konfiguriert — Stephans Standort hat keine Home-Assistant-Instanz, alle Werte laufen über
 die Tasmota-eigene Weboberfläche.
+
+## 8. OLED-Anzeige — Bedeutung der vier Zeilen
+
+Das Display zeigt die wichtigsten Kernwerte direkt am Gehäuse, auch ohne Handy/Browser in der Nähe.
+Format (aus `refresh_display()` in `autoexec.be`):
+
+| Zeile | Beispiel | Bedeutung |
+|---|---|---|
+| 1 | `-58dBm 192.168.1.42` | WLAN-Signalstärke (negativ, näher an 0 = besser; ab ca. -80 dBm wird's wacklig) + aktuelle IP-Adresse. Zeigt `No-WiFi`, wenn die WLAN-Verbindung gerade fehlt. |
+| 2 | `2M 270° 3L` | **M** = Windgeschwindigkeit in m/s. **°** = Windrichtung in Grad wie am Kompass (0°/360°=Nord, 90°=Ost, 180°=Süd, 270°=West), im Uhrzeigersinn. **L** = Regenmenge der letzten 24h in Liter/m² — entspricht "mm Niederschlag" (1 mm Regen = 1 L/m²), nur anders benannt, kein Fehler. |
+| 3 | `21.4C 1013 U 55%` | Temperatur in °C (vom DS18B20, bewusst nicht vom BME280 — Eigenerwärmungseffekt, siehe Abschnitt 4), Luftdruck in hPa (gerundet), Drucktrend (**U**p/**D**own/**-** = stabil), Luftfeuchte in % (vom BME280). |
+| 4 | `Regen Stunde: 0.2L` | Regenmenge der aktuell laufenden Stunde, gleiche Einheit wie Zeile 2 (L = L/m² = mm). Setzt sich stündlich automatisch zurück. |
+
+Nachts (22:00–08:00 Uhr, siehe `QUIET_START_HOUR`/`QUIET_END_HOUR`) bleiben Display und Status-LED
+bewusst aus, um nicht zu stören — kein Fehler.
 
 Weiter mit: [wiring.md](wiring.md) für die physische Verkabelung.
