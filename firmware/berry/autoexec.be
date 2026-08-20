@@ -185,6 +185,29 @@ class IceWeather : Driver
     # liefern und sofort Nachtruhe ausloesen. Stattdessen verzoegert pruefen
     # und bei Bedarf so lange wiederholen, bis eine plausible Zeit vorliegt.
     tasmota.set_timer(15000, / -> self.check_quiet_hours(), "quiet_hours_initial")
+
+    self.setup_as3935()
+  end
+
+  # Live gefunden 20.08.2026 (waehrend eines echten Gewitters): AS3935-Gain
+  # stand auf "Indoors" statt "Outdoors", Distance/Energy blieben trotz
+  # Donner/Blitzen bei 0 - identisches Symptom wie der bereits dokumentierte
+  # Vorfall vom 19.07.2026 (Tunecaps:0, siehe docs/tasmota-config.md Abschnitt 5).
+  # Ursache: Gain/Disturber/Tune-Caps liegen in Chip-internen AS3935-Registern,
+  # die am selben 3,3V-Rail wie ESP32/BME280/OLED haengen - ein ESP32-Neustart
+  # (z.B. fuer ein Firmware-Update) nimmt dem AS3935 die Spannung mit und wirft
+  # damit auch dessen Kalibrierung weg. Tasmota persistiert das NICHT selbst,
+  # anders als z.B. DisplayDimmer/LedState. Deshalb hier bei JEDEM Boot neu
+  # anwenden, statt sich auf ein einmalig per Konsole gesetztes Setup zu
+  # verlassen - analog zum Nachtruhe-Self-Heal oben.
+  # Reihenfolge wichtig: AS3935calibrate schaltet den Disturber-Filter intern
+  # wieder aus, daher muss "AS3935disturber 1" danach kommen (siehe Doku).
+  def setup_as3935()
+    tasmota.cmd("AS3935setgain Outdoors")
+    tasmota.cmd("AS3935calibrate")
+    tasmota.cmd("AS3935disturber 1")
+    tasmota.cmd("AS3935autonf 1")
+    tasmota.cmd("AS3935autodisturber 1")
   end
 
   # Nachtruhe 22:00-08:00: OLED dimmen + Status-LED abschalten, damit niemand

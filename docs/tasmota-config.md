@@ -125,6 +125,8 @@ AS3935disturber 1    // Kalibrierung schaltet Disturber-Filter intern ab und lä
 ```
 Alternative laut [Tasmota-Doku](https://tasmota.github.io/docs/AS3935/): Manche Module haben den korrekten, werksseitig ermittelten Tuning-Wert als Aufkleber auf der Platine — dann direkt `AS3935settunecaps <Wert>` statt Auto-Kalibrierung. Nach jedem `AS3935calibrate`/`AS3935settunecaps` immer `AS3935settings` gegenprüfen (Disturber-Status!) und danach live abwarten, ob reale Blitze jetzt registriert werden.
 
+⚠️ **Wiederholt live gefunden (2026-08-20), diesmal Ursache geklärt:** Während eines echten Gewitters erneut `Distance:0, Energy:0` trotz Donner — Gain stand wieder auf `Indoors` statt `Outdoors`. Grund: Gain/Disturber/Tune-Caps sind Chip-interne AS3935-Register, kein von Tasmota persistiertes `Setting` — sie hängen am selben 3,3V-Rail wie ESP32/BME280/OLED und werden bei **jedem** ESP32-Neustart (z.B. für ein Firmware-Update) mit zurückgesetzt. Ein einmalig per Konsole gesetztes Setup hält also nur bis zum nächsten Reboot. **Fix:** `autoexec.be` ruft die komplette AS3935-Konfiguration (`setup_as3935()`) jetzt bei jedem Boot automatisch erneut auf (Reihenfolge wie oben: erst `AS3935calibrate`, danach `AS3935disturber 1`, weil die Kalibrierung den Disturber-Filter intern abschaltet) — analog zum Nachtruhe-Self-Heal. Manuelles Nachsetzen nach einem Neustart ist damit nicht mehr nötig.
+
 ## 6. OLED-Display (Hailege 0,96" SSD1306, 128×64, I2C, 4-Pin)
 
 Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Braucht aber einen zusätzlichen **virtuellen Marker-Pin** (s.u.).
