@@ -202,9 +202,21 @@ class IceWeather : Driver
   # verlassen - analog zum Nachtruhe-Self-Heal oben.
   # Reihenfolge wichtig: AS3935calibrate schaltet den Disturber-Filter intern
   # wieder aus, daher muss "AS3935disturber 1" danach kommen (siehe Doku).
+  #
+  # Live gefunden 20.08.2026 (2), direkt beim ersten Test dieses Self-Heals:
+  # AS3935calibrate ohne Pause gefolgt von AS3935disturber 1 fuehrte dazu,
+  # dass Disturber trotzdem auf "Off" blieb (5x ueber 40s stabil bestaetigt,
+  # kein Einschwingvorgang) - die Kalibrierungsroutine laeuft offenbar noch,
+  # wenn der naechste Befehl schon ankommt, und ihr interner "Disturber aus"-
+  # Nebeneffekt gewinnt das Rennen. Fix: die Folgebefehle ueber einen Timer
+  # entkoppeln, statt alle synchron direkt hintereinander abzusetzen.
   def setup_as3935()
     tasmota.cmd("AS3935setgain Outdoors")
     tasmota.cmd("AS3935calibrate")
+    tasmota.set_timer(1000, / -> self.setup_as3935_after_calibrate(), "as3935_setup_2")
+  end
+
+  def setup_as3935_after_calibrate()
     tasmota.cmd("AS3935disturber 1")
     tasmota.cmd("AS3935autonf 1")
     tasmota.cmd("AS3935autodisturber 1")
