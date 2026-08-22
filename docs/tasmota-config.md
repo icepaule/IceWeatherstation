@@ -129,6 +129,21 @@ Alternative laut [Tasmota-Doku](https://tasmota.github.io/docs/AS3935/): Manche 
 
 **Korrektur (2026-08-20), per Tasmota-Quellcode verifiziert** (`xsns_67_as3935.ino`, Funktion `AS3935AutoTuneCaps`): Die obige Annahme von 2026-07-19, `AS3935calibrate` schalte den Disturber-Filter intern ab, ist **falsch** — die Kalibrierroutine fasst das Disturber-Register nachweislich nicht an, sie stellt ausschliesslich `TUNE_CAPS` über `LCO_FDIV`/`DISP_LCO` ein. Der damals (und auch heute wieder) beobachtete `Disturber: Off`-Zustand kommt stattdessen von `AS3935autodisturber 1` selbst: Der Treiber schaltet die Disturber-Unterdrückung nach `DisturberAutoTime` (Default 1 Minute) automatisch kurz aus und wartet auf ein echtes Störsignal, um sie wieder zu aktivieren (`AS3935EverySecond()`, IRQ-Fall 4) — eine gewollte Selbstabgleich-Schleife gegen die Umgebungs-EMI, **kein Fehler**. Wichtig: Dieser Zyklus betrifft ausschliesslich die Störsignal-Filterung. Echte Blitze (IRQ-Fall 8, "storm") laufen über einen komplett getrennten Codepfad und werden unabhängig vom Disturber-Status immer erkannt. `AS3935disturber 1` nach der Kalibrierung bleibt trotzdem sinnvoll (Ausgangszustand explizit setzen), ist aber keine zeitkritische Reihenfolge-Abhängigkeit zu `AS3935calibrate`.
 
+⚠️ **Dashboard-Bug gefunden und behoben (2026-08-22), während eines echten Gewitters live geprüft:** Das MQTT-`Event`-Feld im `AS3935`-JSON ist **nicht** der rohe IRQ-Registerwert (1/4/8 laut Datenblatt), sondern wird vom Treiber bereits übersetzt (`AS3935TranslIrq()` in `xsns_67_as3935.ino`, per Quellcode verifiziert):
+
+| Event | Bedeutung |
+|---|---|
+| `0` | Ruhezustand (kein Interrupt seit letztem Teleperiod-Report) |
+| `1` | **Blitz mit Entfernung erkannt** |
+| `2` | **Blitz, aber ausserhalb des Entfernungsbereichs** |
+| `3` | **Blitz, Entfernung nicht bestimmbar** |
+| `4` | **Gewitter direkt über dem Sensor** |
+| `5` | Rauschpegel zu hoch |
+| `6` | Störsignal (Disturber) erkannt |
+| `7` | Interrupt ohne erkennbare Ursache |
+
+Das Kiosk-Dashboard (`dashboards/kiosk_tablet.yaml`, Karte "AS3935") prüfte bisher fälschlich auf `e == '8'` für "Blitz!" (kommt nie vor) und auf `e == '1'` für "Rauschen" — genau der Code für einen **echten, per Entfernung lokalisierten Blitzschlag**. Ein realer Strike wäre also nie als "Blitz!" angezeigt worden, sondern fälschlich als "Rauschen". Fix: Template korrigiert auf `e in ['1','2','3','4']` → "Blitz!" (gelb), `e == '6'` → "Störer" (orange), `e == '5'` → "Rauschen". Betraf nur die Dashboard-Anzeige — Erkennung/MQTT/Logging auf Tasmota-Seite waren davon nicht betroffen.
+
 ## 6. OLED-Display (Hailege 0,96" SSD1306, 128×64, I2C, 4-Pin)
 
 Kein eigener Sensor-GPIO nötig — das Display hängt als dritter Teilnehmer am selben I2C-Bus wie BME280 und AS3935 (siehe [wiring.md](wiring.md)). Braucht aber einen zusätzlichen **virtuellen Marker-Pin** (s.u.).
